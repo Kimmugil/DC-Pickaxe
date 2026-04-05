@@ -4,6 +4,7 @@ DC-Pickaxe 온보딩 스크래퍼
 - 게시글 1건 수집 즉시 시트에 저장 (중단해도 저장된 데이터 보존)
 - Ctrl+C로 언제든 안전하게 중단 가능
 - 오늘 게시글은 건너뜀 (자동 스케줄러 담당)
+- N건 수집마다 자동 휴식 (봇 차단 방지)
 """
 import os
 import time
@@ -20,11 +21,19 @@ from utils import (
 load_dotenv()
 
 
+# ── 봇 차단 방지 설정 ──────────────────────────────────────
+# 이 수만큼 수집하면 자동으로 쉬어감 (하루종일 켜둬도 안전)
+REST_EVERY_N_POSTS  = 200        # N건마다 쉬기
+REST_DURATION_MIN   = 10         # 쉬는 시간 (분)
+# ──────────────────────────────────────────────────────────
+
+
 def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
     """
     어제부터 과거 방향으로 스크래핑하며 수집 즉시 시트에 저장합니다.
     이미 existing_ids에 있는 게시글은 건너뜁니다.
     오늘 게시글은 건너뜁니다 (스케줄러 담당).
+    REST_EVERY_N_POSTS건마다 자동 휴식해서 봇 차단을 방지합니다.
     """
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST)
@@ -42,6 +51,7 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
     print(f"{'='*55}")
     print(f"  오늘({today}) 게시글 → 건너뜀 (스케줄러 담당)")
     print(f"  이미 수집된 게시글 {len(existing_ids):,}개 → 건너뜀")
+    print(f"  {REST_EVERY_N_POSTS}건마다 {REST_DURATION_MIN}분 자동 휴식 (차단 방지)")
     print(f"  Ctrl+C 로 언제든 안전하게 중단 가능")
     print(f"{'='*55}\n")
 
@@ -120,6 +130,14 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
                     new_on_page += 1
                     collected_count += 1
                     print(f"  ✅ [{collected_count:>4}] #{post_id} | {date_val} | {title[:28]}")
+
+                    # ── 자동 휴식 (봇 차단 방지) ──
+                    if collected_count % REST_EVERY_N_POSTS == 0:
+                        rest_sec = REST_DURATION_MIN * 60
+                        print(f"\n  💤 {collected_count}건 수집 완료 → {REST_DURATION_MIN}분 휴식 시작... "
+                              f"(재개 예정: {(datetime.now(KST) + timedelta(minutes=REST_DURATION_MIN)).strftime('%H:%M')})")
+                        time.sleep(rest_sec)
+                        print(f"  ▶️  휴식 종료. 수집 재개!\n")
 
                 # 연속 빈 페이지 카운트 (오늘 글만 있는 페이지는 제외)
                 if new_on_page == 0 and today_skipped == 0:
