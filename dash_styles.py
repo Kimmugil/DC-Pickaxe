@@ -9,50 +9,54 @@ _CSS = (
     "[data-testid='stToolbar']{display:none!important}"
     ".block-container{padding:1rem 1.4rem!important;max-width:1340px!important}"
 
-    # ── 사이드바 열림 고정 (≡ 버튼 + « 버튼 모두 숨김) ────────────
+    # ── 사이드바 기본 ──────────────────────────────────────────────
+    "section[data-testid='stSidebar']{"
+    "background:#FFFFFF!important;border-right:1.5px solid #1E1E1E!important}"
+    "section[data-testid='stSidebar'] .block-container{"
+    "padding:0 0 80px 0!important;max-width:none!important}"
+
+    # ── 사이드바 버튼: border 없음, 텍스트 좌측정렬 (모든 버튼 대상) ─
+    "section[data-testid='stSidebar'] button{"
+    "background:transparent!important;border:none!important;"
+    "box-shadow:none!important;border-radius:6px!important;"
+    "color:#1E1E1E!important;font-size:13px!important;"
+    "padding:8px 16px!important;width:100%!important;"
+    "display:flex!important;align-items:center!important;"
+    "justify-content:flex-start!important;text-align:left!important;"
+    "transition:background .12s!important}"
+    "section[data-testid='stSidebar'] button p,"
+    "section[data-testid='stSidebar'] button span,"
+    "section[data-testid='stSidebar'] button div[data-testid]{"
+    "text-align:left!important;width:100%!important;margin:0!important;"
+    "justify-content:flex-start!important}"
+    "section[data-testid='stSidebar'] button:hover{"
+    "background:#F4F5F7!important}"
+    "section[data-testid='stSidebar'] .stButton{"
+    "padding:0 8px!important;width:100%!important}"
+    "section[data-testid='stSidebar'] .stButton>button{"
+    "width:100%!important}"
+
+    # ── 데스크톱: 사이드바 닫힘 버튼 숨김 (항상 열림 고정) ──────────
+    "@media(min-width:769px){"
     "[data-testid='stSidebarCollapsedControl']{display:none!important}"
     "section[data-testid='stSidebar'] [data-testid='stBaseButton-headerNoPadding']{"
     "display:none!important}"
-    "section[data-testid='stSidebar'] button[kind='header']{display:none!important}"
+    "section[data-testid='stSidebar'] button[kind='header']{display:none!important}}"
 
-    # ── Sidebar 기본 ───────────────────────────────────────────────
-    "section[data-testid='stSidebar']{"
-    "background:#FFFFFF!important;"
-    "border-right:1.5px solid #1E1E1E!important}"
-    "section[data-testid='stSidebar'] .block-container{"
-    "padding:0 0 80px 0!important;max-width:none!important}"
+    # ── 모바일: 햄버거 버튼 강제 표시 ────────────────────────────────
+    "@media(max-width:768px){"
+    "[data-testid='stSidebarCollapsedControl']{"
+    "display:flex!important;visibility:visible!important;opacity:1!important;"
+    "pointer-events:auto!important}}"
 
     # ── 버튼: 메인 영역 ───────────────────────────────────────────
     "[data-testid='stMain'] button[data-testid='baseButton-secondary']{"
     "background:#FFFFFF!important;border:1.5px solid #1E1E1E!important;"
     "border-radius:10px!important;color:#1E1E1E!important;font-weight:600!important;"
-    "box-shadow:none!important;font-size:13px!important}"
+    "box-shadow:none!important;font-size:13px!important;"
+    "justify-content:flex-start!important}"
     "[data-testid='stMain'] button[data-testid='baseButton-secondary']:hover{"
     "background:#F4F5F7!important}"
-
-    # ── 버튼: 사이드바 (아웃라인 없음, 텍스트 좌측정렬) ────────────
-    "section[data-testid='stSidebar'] button[data-testid='baseButton-secondary']{"
-    "background:transparent!important;border:none!important;box-shadow:none!important;"
-    "color:#1E1E1E!important;font-weight:500!important;"
-    "padding:8px 16px!important;border-radius:6px!important;"
-    "width:100%!important;transition:background .12s!important;"
-    "display:flex!important;align-items:center!important;"
-    "justify-content:flex-start!important;text-align:left!important}"
-    "section[data-testid='stSidebar'] button[data-testid='baseButton-secondary'] p{"
-    "text-align:left!important;width:100%!important;margin:0!important}"
-    "section[data-testid='stSidebar'] button[data-testid='baseButton-secondary']:hover{"
-    "background:#F4F5F7!important}"
-    # .stButton wrapper 너비 강제
-    "section[data-testid='stSidebar'] .stButton{width:100%!important}"
-    "section[data-testid='stSidebar'] .stButton>button{width:100%!important}"
-
-    # ── st.container(border=True) → .lc 와 동일하게 ───────────────
-    "[data-testid='stVerticalBlockBorderWrapper']{"
-    "background:#FFFFFF!important;border:1.5px solid #1E1E1E!important;"
-    "border-radius:20px!important;overflow:hidden!important;"
-    "margin-bottom:12px!important;word-break:keep-all!important}"
-    "[data-testid='stVerticalBlockBorderWrapper']>[data-testid='stVerticalBlock']{"
-    "padding:20px 22px!important;gap:0!important}"
 
     # ── Cards ──────────────────────────────────────────────────────
     ".lc{background:#FFFFFF;border:1.5px solid #1E1E1E;border-radius:20px;"
@@ -67,7 +71,7 @@ _CSS = (
     # ── Typography ────────────────────────────────────────────────
     ".ctitle{font-size:14px;font-weight:700;color:#1E1E1E;margin:0 0 14px;word-break:keep-all}"
     ".sec{font-size:14px;font-weight:700;color:#1E1E1E;"
-    "border-left:3px solid #1E1E1E;padding-left:10px;margin:20px 0 10px}"
+    "border-left:3px solid #1E1E1E;padding-left:10px;margin:16px 0 8px}"
     ".sub{font-size:11px;color:#757575}"
 
     # ── 배지 ──────────────────────────────────────────────────────
@@ -84,12 +88,10 @@ _CSS = (
     ".hc-score{display:inline-block;background:#FFD166;border:1.5px solid #1E1E1E;"
     "border-radius:6px;font-size:11px;font-weight:700;padding:1px 7px;margin-bottom:6px}"
 
-    # ── 테이블 행 카드 ─────────────────────────────────────────────
-    ".rc{background:#FFFFFF;border:1.5px solid #E5E5E5;border-radius:10px;"
-    "padding:10px 13px;font-size:13px;color:#1E1E1E;margin-bottom:4px;"
-    "word-break:keep-all}"
+    # ── 테이블 행 ─────────────────────────────────────────────────
     ".th{font-size:10px;color:#757575;font-weight:700;"
     "text-transform:uppercase;letter-spacing:.6px;padding:0 4px;margin-bottom:2px}"
+    ".rc{font-size:13px;color:#1E1E1E;padding:6px 4px;word-break:keep-all}"
 
     # ── 링크 버튼 ─────────────────────────────────────────────────
     ".stLinkButton>a{background:#FFFFFF!important;color:#1E1E1E!important;"
