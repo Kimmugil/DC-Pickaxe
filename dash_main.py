@@ -76,7 +76,11 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
 
         # ── 이번 수집량 파싱 ──────────────────────────────────────────
         m_run = re.search(r"(\d+)개", rm)
-        this_run_txt = f"{int(m_run.group(1))}건" if m_run else "—"
+        if m_run:
+            run_n = int(m_run.group(1))
+            this_run_txt = "새 글 없음" if run_n == 0 else f"{run_n:,}건"
+        else:
+            this_run_txt = "—"
 
         # ── 인기글 미리보기 ───────────────────────────────────────────
         hot_content = "<span class='sub'>데이터 없음</span>"
@@ -138,7 +142,6 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
             f"<div style='display:flex;align-items:center;"
             f"justify-content:space-between;flex-wrap:wrap;gap:6px'>"
             f"<span style='font-size:15px;font-weight:900'>{dot}{gn}</span>"
-            f"{bdg(rm)}"
             f"</div>"
             f"<p class='sub' style='margin:5px 0 0;padding-left:16px'>{gi}</p>"
             f"</div>"
