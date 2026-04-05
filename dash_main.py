@@ -74,20 +74,24 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
         cnt = counts.get(gn, -1)
         cnt_txt = f"{cnt:,}건" if cnt >= 0 else "—"
 
-        # 인기글 미리보기
-        hot_section = (
-            "<div style='font-size:12px;color:#AAAAAA'>로딩 중...</div>"
-        )
+        # ── 이번 수집량 파싱 ──────────────────────────────────────────
+        m_run = re.search(r"(\d+)개", rm)
+        this_run_txt = f"{int(m_run.group(1))}건" if m_run else "—"
+
+        # ── 인기글 미리보기 ───────────────────────────────────────────
+        hot_content = "<span class='sub'>데이터 없음</span>"
+        hot_period  = "24시간 내"
         if su.startswith("http"):
             gdf = load_gallery(su)
-            hot, _ = get_hot_posts(gdf, n=1)
+            hot, period = get_hot_posts(gdf, n=1)
+            hot_period = period
             if not hot.empty:
                 hr    = hot.iloc[0]
                 link  = str(hr.get("링크", ""))
                 title = str(hr.get("제목", ""))
                 rec   = int(hr.get("추천수", 0))
                 cmt   = int(hr.get("댓글수", 0))
-                t_short = title[:28] + "…" if len(title) > 28 else title
+                t_short = title[:30] + "…" if len(title) > 30 else title
                 t_tag = (
                     f"<a href='{link}' target='_blank'"
                     f" style='color:#1E1E1E;text-decoration:none;font-weight:600'>"
@@ -95,14 +99,10 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                     if link.startswith("http") else
                     f"<span style='font-weight:600'>{t_short}</span>"
                 )
-                hot_section = (
+                hot_content = (
                     f"<div style='font-size:13px;line-height:1.5'>🔥 {t_tag}</div>"
                     f"<div class='sub' style='margin-top:4px'>👍 {rec} &nbsp; 💬 {cmt}</div>"
                 )
-            else:
-                hot_section = "<span class='sub'>인기글 없음</span>"
-        else:
-            hot_section = "<span class='sub'>—</span>"
 
         dot = (
             f"<span style='display:inline-block;width:10px;height:10px;"
@@ -110,7 +110,7 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
             f"flex-shrink:0;vertical-align:middle;margin-right:6px'></span>"
         )
 
-        # ── 카드 전체 (순수 HTML) — 두 버튼 모두 링크로 처리 ───────────
+        # ── 카드 전체 (순수 HTML) ──────────────────────────────────────
         lbl_link   = cfg.get("btn_gallery_link", "📊 갤러리 바로가기")
         lbl_detail = cfg.get("btn_detail",        "→ 수집 상세 보기")
 
@@ -123,7 +123,6 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
         ) if su.startswith("http") else (
             f"<div style='flex:1;border-right:1.5px solid #1E1E1E'></div>"
         )
-
         detail_btn = (
             f"<a href='?gallery={gi}'"
             f" style='display:flex;align-items:center;justify-content:center;"
@@ -141,20 +140,37 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
             f"<span style='font-size:15px;font-weight:900'>{dot}{gn}</span>"
             f"{bdg(rm)}"
             f"</div>"
-            f"<p class='sub' style='margin:5px 0 0;padding-left:16px'>"
-            f"{gi} &nbsp;|&nbsp; 🕐 {time_ago(lr2)}</p>"
+            f"<p class='sub' style='margin:5px 0 0;padding-left:16px'>{gi}</p>"
             f"</div>"
-            # KPI + 인기글
+            # KPI 3블록 (초록/노랑/파랑)
             f"<div style='display:flex;border-top:1.5px solid #1E1E1E'>"
-            f"<div style='width:100px;flex-shrink:0;padding:12px 14px;"
-            f"background:#F0FAF3;border-right:1.5px solid #1E1E1E'>"
-            f"<div style='font-size:18px;font-weight:900;color:#1E1E1E'>{cnt_txt}</div>"
+            # 초록: 총 수집
+            f"<div style='flex:1;padding:10px 12px;background:#F0FAF3;"
+            f"border-right:1.5px solid #1E1E1E;min-width:0'>"
+            f"<div style='font-size:17px;font-weight:900;color:#1E1E1E'>{cnt_txt}</div>"
             f"<div style='font-size:10px;color:#757575;font-weight:700;"
-            f"text-transform:uppercase;margin-top:4px'>게시글</div>"
+            f"text-transform:uppercase;letter-spacing:.4px;margin-top:3px'>총 게시글</div>"
             f"</div>"
-            f"<div style='flex:1;padding:12px 14px;background:#FFFCF0;min-width:0'>"
-            f"{hot_section}"
+            # 노랑: 이번 수집
+            f"<div style='flex:1;padding:10px 12px;background:#FFFCF0;"
+            f"border-right:1.5px solid #1E1E1E;min-width:0'>"
+            f"<div style='font-size:17px;font-weight:900;color:#1E1E1E'>{this_run_txt}</div>"
+            f"<div style='font-size:10px;color:#757575;font-weight:700;"
+            f"text-transform:uppercase;letter-spacing:.4px;margin-top:3px'>이번 수집</div>"
             f"</div>"
+            # 파랑: 마지막 실행
+            f"<div style='flex:1;padding:10px 12px;background:#EFF8FF;min-width:0'>"
+            f"<div style='font-size:17px;font-weight:900;color:#1E1E1E'>{time_ago(lr2)}</div>"
+            f"<div style='font-size:10px;color:#757575;font-weight:700;"
+            f"text-transform:uppercase;letter-spacing:.4px;margin-top:3px'>마지막 실행</div>"
+            f"</div>"
+            f"</div>"
+            # 인기글 (흰색, 별도 영역)
+            f"<div style='border-top:1.5px solid #1E1E1E;padding:10px 14px;background:#FFFFFF'>"
+            f"<div style='font-size:10px;font-weight:700;color:#757575;"
+            f"text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px'>"
+            f"🔥 인기글 ({hot_period} 기준)</div>"
+            f"{hot_content}"
             f"</div>"
             # 버튼 행
             f"<div style='display:flex;border-top:1.5px solid #1E1E1E'>"
