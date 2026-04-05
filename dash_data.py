@@ -51,6 +51,21 @@ _DEFAULT_CONFIG = {
     "title_cumul":        "📈 누적 추이",
     "title_recent_list":  "📝 최근 수집 게시글",
     "btn_sheet":          "📊 전체 시트 →",
+    # 갤러리 카드 KPI 라벨 (메인 페이지 카드 내부)
+    "kpi_card_total":      "총 게시글",
+    "kpi_card_this_run":   "이번 수집",
+    "kpi_card_last_run":   "마지막 실행",
+    # 인기글 영역
+    "label_hot_prefix":    "🔥 인기글",
+    "label_no_data":       "데이터 없음",
+    # 추이 차트
+    "title_trend":         "📈 갤러리별 게시글 추이 (최근 30일)",
+    # 사이드바 하단
+    "sidebar_mobile_hint": "📱 모바일에서는 좌상단 ≡ 버튼으로 메뉴 열기",
+    "btn_admin_drive":     "관계자외 출입불가",
+    "drive_url":           "https://drive.google.com/drive/u/0/folders/1Wdgc7IAbdzISSDKU7a1JzM4Vh8KSOrlA",
+    # 갤러리 상세
+    "msg_gall_no_data":    "수집된 게시글이 없습니다. 온보딩 스크래퍼를 실행해주세요.",
 }
 
 _SCOPES = [

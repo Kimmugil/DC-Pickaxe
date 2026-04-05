@@ -15,7 +15,7 @@ def render(row, nc, ic, uc, rc, lc, cfg):
         gdf = load_gallery(su)
 
     if gdf.empty:
-        st.info("수집된 게시글이 없습니다. 온보딩 스크래퍼를 실행해주세요.")
+        st.info(cfg.get("msg_gall_no_data", "수집된 게시글이 없습니다. 온보딩 스크래퍼를 실행해주세요."))
         return
 
     total = len(gdf)

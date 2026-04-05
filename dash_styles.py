@@ -106,7 +106,14 @@ _CSS = (
     "border:1.5px solid #1E1E1E!important}"
     "[data-testid='stDataFrame']{border-radius:12px;overflow:hidden}"
 
+    # ── 갤러리 그리드: 데스크톱 2열 ─────────────────────────────
+    ".gallery-grid{"
+    "display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px}"
+    ".gallery-grid>.lc{margin-bottom:0!important}"
+
     # ── 모바일 반응형 ─────────────────────────────────────────────
+    "@media(max-width:768px){"
+    ".gallery-grid{grid-template-columns:1fr!important}}"
     "@media(max-width:640px){"
     ".block-container{padding:.5rem .5rem!important}"
     ".lc{padding:14px 12px!important;border-radius:14px!important}"

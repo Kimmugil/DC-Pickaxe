@@ -6,13 +6,6 @@ CHART_COLORS = [
     "#B5B2FF", "#FFBE7D", "#A8E6CF", "#FFD3B6",
 ]
 
-STATUS_COLORS = {
-    "수집성공": "#82C29A",
-    "새글없음": "#6DC2FF",
-    "에러":     "#FF9F9F",
-    "미실행":   "#E0E0E0",
-}
-
 
 def _pts(values, w, h, pad=16):
     vmin, vmax = min(values), max(values)
@@ -59,36 +52,6 @@ def svg_line_area(values, width=560, height=130,
     )
 
 
-def svg_bar_h(data, width=480, height=200):
-    if not data:
-        return ""
-    items = sorted(data.items(), key=lambda x: x[1], reverse=True)
-    n = len(items)
-    vmax = max(v for _, v in items) or 1
-    row_h = (height - 10) / n
-    bar_area = width - 110
-    out = ""
-    for i, (label, val) in enumerate(items):
-        y = i * row_h + row_h * 0.15
-        bh = row_h * 0.55
-        bw = (val / vmax) * bar_area
-        color = CHART_COLORS[i % len(CHART_COLORS)]
-        short = (label[:7] + "…") if len(label) > 8 else label
-        out += (
-            f"<rect x='104' y='{y:.1f}' width='{bw:.1f}' height='{bh:.1f}'"
-            f" rx='4' fill='{color}' stroke='#1E1E1E' stroke-width='1.5'"
-            f" vector-effect='non-scaling-stroke'/>"
-            f"<text x='100' y='{y + bh * 0.78:.1f}' text-anchor='end'"
-            f" font-size='12' fill='#1E1E1E' font-weight='500'>{short}</text>"
-            f"<text x='{104 + bw + 6:.1f}' y='{y + bh * 0.78:.1f}'"
-            f" font-size='11' fill='#757575'>{val:,}</text>"
-        )
-    return (
-        f"<svg width='100%' viewBox='0 0 {width} {height}'"
-        f" xmlns='http://www.w3.org/2000/svg'>{out}</svg>"
-    )
-
-
 def svg_bar_daily(dates, values, width=580, height=160, bar_color="#FFD166"):
     if not values:
         return ""
@@ -120,48 +83,106 @@ def svg_bar_daily(dates, values, width=580, height=160, bar_color="#FFD166"):
     )
 
 
-def svg_donut(data, size=170):
-    if not data or sum(data.values()) == 0:
+def svg_multi_line_daily(series, width=880, height=210):
+    """
+    갤러리별 일자별 게시글 수 멀티라인 SVG 차트.
+    series: list of (name, color, {date_str: int})
+    """
+    if not series:
         return ""
-    total = sum(data.values())
-    cx = cy = size / 2
-    ro = size * 0.40
-    ri = size * 0.24
-    angle = -90.0
-    slices = ""
-    for label, val in data.items():
-        if val == 0:
+
+    # 모든 날짜 수집 → 최근 30일
+    all_dates = sorted(set(d for _, _, data in series for d in data.keys()))
+    if len(all_dates) < 2:
+        return ""
+    all_dates = all_dates[-30:]
+    n = len(all_dates)
+
+    vmax = max(
+        (data.get(d, 0) for _, _, data in series for d in all_dates),
+        default=1
+    ) or 1
+
+    legend_h = 24
+    pl, pr, pt, pb = 14, 14, legend_h + 10, 26
+    draw_w = width - pl - pr
+    draw_h = height - pt - pb
+
+    def xy(i, v):
+        x = pl + (i / max(n - 1, 1)) * draw_w
+        y = pt + draw_h * (1.0 - v / vmax)
+        return x, y
+
+    out = ""
+
+    # 가로 그리드 라인
+    for level in (0.25, 0.5, 0.75, 1.0):
+        gy = pt + draw_h * (1.0 - level)
+        out += (
+            f"<line x1='{pl}' y1='{gy:.1f}' x2='{width - pr}' y2='{gy:.1f}'"
+            f" stroke='#EDEDEE' stroke-width='1'/>"
+        )
+
+    # 각 시리즈 라인
+    for name, color, data in series:
+        vals = [data.get(d, 0) for d in all_dates]
+        if all(v == 0 for v in vals):
             continue
-        sweep = (val / total) * 360
-        end = angle + sweep
-        sr = math.radians(angle)
-        er = math.radians(end)
-        ox1 = cx + ro * math.cos(sr)
-        oy1 = cy + ro * math.sin(sr)
-        ox2 = cx + ro * math.cos(er)
-        oy2 = cy + ro * math.sin(er)
-        ix1 = cx + ri * math.cos(er)
-        iy1 = cy + ri * math.sin(er)
-        ix2 = cx + ri * math.cos(sr)
-        iy2 = cy + ri * math.sin(sr)
-        la = 1 if sweep > 180 else 0
-        c = STATUS_COLORS.get(label, "#CCCCCC")
-        dp = (
-            f"M {ox1:.1f} {oy1:.1f} A {ro:.1f} {ro:.1f} 0 {la} 1 {ox2:.1f} {oy2:.1f}"
-            f" L {ix1:.1f} {iy1:.1f} A {ri:.1f} {ri:.1f} 0 {la} 0 {ix2:.1f} {iy2:.1f} Z"
+        pts = [xy(i, v) for i, v in enumerate(vals)]
+        path = f"M {pts[0][0]:.1f},{pts[0][1]:.1f}"
+        for i in range(1, len(pts)):
+            x0, y0 = pts[i - 1]
+            x1, y1 = pts[i]
+            cx = (x0 + x1) / 2
+            path += f" C {cx:.1f},{y0:.1f} {cx:.1f},{y1:.1f} {x1:.1f},{y1:.1f}"
+        out += (
+            f"<path d='{path}' fill='none' stroke='{color}'"
+            f" stroke-width='2' stroke-linecap='round' stroke-linejoin='round'"
+            f" vector-effect='non-scaling-stroke'/>"
         )
-        slices += (
-            f"<path d='{dp}' fill='{c}' stroke='#1E1E1E'"
-            f" stroke-width='1' vector-effect='non-scaling-stroke'/>"
+        # 마지막 데이터 포인트 원
+        lx, ly = pts[-1]
+        out += (
+            f"<circle cx='{lx:.1f}' cy='{ly:.1f}' r='3'"
+            f" fill='{color}' stroke='#1E1E1E' stroke-width='1'"
+            f" vector-effect='non-scaling-stroke'/>"
         )
-        angle = end
-    slices += (
-        f"<text x='{cx:.0f}' y='{cy - 4:.0f}' text-anchor='middle'"
-        f" font-size='18' font-weight='800' fill='#1E1E1E'>{total}</text>"
-        f"<text x='{cx:.0f}' y='{cy + 14:.0f}' text-anchor='middle'"
-        f" font-size='10' fill='#757575'>전체</text>"
+
+    # 베이스라인
+    base_y = pt + draw_h
+    out += (
+        f"<line x1='{pl}' y1='{base_y:.1f}' x2='{width - pr}' y2='{base_y:.1f}'"
+        f" stroke='#CCCCCC' stroke-width='1'/>"
     )
+
+    # X축 날짜 라벨
+    label_indices = [0]
+    step = max(n // 5, 1)
+    label_indices += list(range(step, n - 1, step))
+    if (n - 1) not in label_indices:
+        label_indices.append(n - 1)
+    for i in label_indices:
+        x, _ = xy(i, 0)
+        lbl = all_dates[i][5:]  # MM-DD
+        out += (
+            f"<text x='{x:.1f}' y='{height - 6}'"
+            f" text-anchor='middle' font-size='9' fill='#AAAAAA'>{lbl}</text>"
+        )
+
+    # 범례 (상단, 균등 배분)
+    ns = len(series)
+    slot_w = (width - 2 * pl) / max(ns, 1)
+    for idx, (name, color, _) in enumerate(series):
+        lx = pl + idx * slot_w
+        short = (name[:5] + "…") if len(name) > 5 else name
+        out += (
+            f"<circle cx='{lx + 5:.1f}' cy='12' r='4.5' fill='{color}'"
+            f" stroke='#1E1E1E' stroke-width='1.2' vector-effect='non-scaling-stroke'/>"
+            f"<text x='{lx + 14:.1f}' y='16' font-size='10'"
+            f" fill='#1E1E1E' font-weight='600'>{short}</text>"
+        )
+
     return (
-        f"<svg width='{size}' height='{size}' viewBox='0 0 {size} {size}'"
-        f" xmlns='http://www.w3.org/2000/svg'>{slices}</svg>"
+        f"<svg width='100%' viewBox='0 0 {width} {height}'"
+        f" xmlns='http://www.w3.org/2000/svg'>{out}</svg>"
     )

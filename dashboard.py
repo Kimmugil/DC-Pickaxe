@@ -37,6 +37,7 @@ ic = find_col(df, "ID", "id") or (df.columns[1] if len(df.columns) > 1 else None
 uc = find_col(df, "URL", "url", "시트")
 rc = find_col(df, "시각", "시간") or (df.columns[3] if len(df.columns) > 3 else None)
 lc = find_col(df, "개수", "결과") or (df.columns[4] if len(df.columns) > 4 else None)
+tc = find_col(df, "타입", "type")  # 갤러리타입 컬럼
 
 # 갤러리별 게시글 수 (캐시됨)
 counts: dict = {}
@@ -87,12 +88,25 @@ def render_sidebar():
                 if st.button(lbl, use_container_width=True, key=f"sb_{gid}"):
                     st.session_state.page = gid
                     st.rerun()
+        # ── 관계자외 출입불가 버튼 ──────────────────────────────
+        drive_url = cfg.get("drive_url", "")
+        btn_admin = cfg.get("btn_admin_drive", "관계자외 출입불가")
+        if drive_url:
+            st.markdown(
+                f"<div style='padding:8px 8px 4px'>"
+                f"<a href='{drive_url}' target='_blank'"
+                f" style='display:flex;align-items:center;justify-content:center;"
+                f"padding:9px 16px;background:#1E1E1E;color:#FFFFFF;"
+                f"border-radius:8px;font-size:12px;font-weight:700;"
+                f"text-decoration:none;gap:6px'>🔒 {btn_admin}</a></div>",
+                unsafe_allow_html=True,
+            )
         st.markdown(
-            "<div style='padding:16px 20px;border-top:1px solid #E5E5E5;margin-top:20px'>"
+            "<div style='padding:12px 20px 16px;border-top:1px solid #E5E5E5;margin-top:8px'>"
             f"<p class='sub' style='margin:0'>DC-Pickaxe {cfg['app_version']}</p>"
             f"<p class='sub' style='margin:2px 0 0'>PM : {cfg['pm_name']}</p>"
-            "<p class='sub' style='margin:6px 0 0;font-size:10px;color:#AAAAAA'>"
-            "📱 모바일에서는 좌상단 ≡ 버튼으로 메뉴 열기</p>"
+            f"<p class='sub' style='margin:6px 0 0;font-size:10px;color:#AAAAAA'>"
+            f"{cfg.get('sidebar_mobile_hint', '📱 모바일에서는 좌상단 ≡ 버튼으로 메뉴 열기')}</p>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -102,7 +116,7 @@ render_sidebar()
 
 # ── 페이지 라우팅 ─────────────────────────────────────────────────
 if st.session_state.page == "main":
-    dash_main.render(df, nc, ic, uc, rc, lc, counts, cfg)
+    dash_main.render(df, nc, ic, uc, rc, lc, tc, counts, cfg)
 else:
     if ic and ic in df.columns:
         match = df[df[ic] == st.session_state.page]
