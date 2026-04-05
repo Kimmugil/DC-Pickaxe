@@ -26,7 +26,7 @@ def get_google_sheet():
     client = gspread.authorize(creds)
     
     # 본인의 구글 시트 URL 또는 문서 ID 입력 (이 부분은 시트 주소로 교체 필요)
-    sheet_url = "구글_시트_URL을_여기에_입력하세요"
+    sheet_url = "https://docs.google.com/spreadsheets/d/10vkTnnqF_Ryu3KIwDr6UA_nYSAPHQWM2ty0yppFxDIs/edit?gid=0#gid=0"
     sheet = client.open_by_url(sheet_url).sheet1
     return sheet
 
@@ -73,7 +73,7 @@ def scrape_gallery(gallery_id):
         return []
 
 def main():
-    gallery_id = "수집할_갤러리_ID_입력"
+    gallery_id = "maplerpg"
     sheet = get_google_sheet()
     
     # 기존에 시트에 있는 '글 번호(A열)' 가져와서 Set으로 변환 (중복 방지 효율화)
