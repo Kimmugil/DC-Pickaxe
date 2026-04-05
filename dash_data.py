@@ -9,15 +9,47 @@ from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
 
-# 기본 UI 텍스트 (마스터시트 config 탭에서 덮어쓸 수 있음)
+# ── UI 텍스트 기본값 (마스터시트 "config" 탭에서 전부 덮어쓸 수 있음) ─
 _DEFAULT_CONFIG = {
-    "app_title":        "DC-Pickaxe 관제탑",
-    "app_subtitle":     "디시인사이드 갤러리 자동 수집 모니터링",
-    "pm_name":          "김무길",
-    "app_version":      "1.0.0",
-    "announcement":     "",
-    "collection_note":  "봇 실행 시 갱신 (1시간 주기)",
-    "sidebar_menu_home":"🏠 메인 대시보드",
+    # 앱 기본 정보
+    "app_title":          "DC-Pickaxe 관제탑",
+    "app_subtitle":       "디시인사이드 갤러리 자동 수집",
+    "pm_name":            "김무길",
+    "app_version":        "1.0.0",
+    "announcement":       "",
+    "collection_note":    "봇 실행 시 갱신 (1시간 주기)",
+    # 사이드바
+    "sidebar_menu_home":  "🏠 메인 대시보드",
+    "sidebar_refresh":    "🔄 새로고침",
+    "sidebar_sec_menu":   "MENU",
+    "sidebar_sec_gall":   "갤러리",
+    # KPI 라벨
+    "kpi_total_posts":    "총 수집 게시글",
+    "kpi_total_sub":      "전체 갤러리 합산",
+    "kpi_this_run":       "이번 수집량",
+    "kpi_this_run_sub":   "최근 1회 실행 합계",
+    "kpi_last_run":       "마지막 실행",
+    "kpi_last_run_sub":   "봇 최근 실행",
+    # 메인 테이블
+    "title_table":        "📋 갤러리별 수집 현황",
+    "title_chart":        "📊 갤러리별 수집 게시글",
+    "col_gallery":        "갤러리",
+    "col_status":         "수집 상태",
+    "col_posts":          "게시글",
+    "col_last_run":       "마지막 실행",
+    "col_hot":            "인기글",
+    "hot_caption":        "추천×2 + 댓글 점수 기준",
+    "btn_detail":         "→ 상세보기",
+    # 갤러리 상세
+    "kpi_gall_total":     "총 수집 게시글",
+    "kpi_gall_first":     "최초 수집",
+    "kpi_gall_recent":    "최근 수집",
+    "kpi_gall_avg":       "일평균",
+    "title_hot_detail":   "🔥 인기글 TOP 3",
+    "title_daily":        "📅 일별 게시글 (30일)",
+    "title_cumul":        "📈 누적 추이",
+    "title_recent_list":  "📝 최근 수집 게시글",
+    "btn_sheet":          "📊 전체 시트 →",
 }
 
 _SCOPES = [
@@ -51,9 +83,7 @@ def load_master() -> pd.DataFrame | None:
     return pd.DataFrame([{k.strip(): v for k, v in r.items()} for r in recs])
 
 
-# ── Config 탭 (마스터시트 두 번째 탭 이름: "config") ───────────────
-# 탭이 없으면 _DEFAULT_CONFIG 그대로 사용
-# 탭 구조: A열=key, B열=value
+# ── Config 탭 (마스터시트 "config" 탭, A=key B=value) ─────────────
 
 @st.cache_data(ttl=60)
 def load_config() -> dict:
@@ -67,7 +97,6 @@ def load_config() -> dict:
     try:
         wb = c.open_by_url(url)
         ws = None
-        # 대소문자 무관하게 탭 탐색
         for name in ["config", "Config", "CONFIG", "설정"]:
             try:
                 ws = wb.worksheet(name)
@@ -78,7 +107,6 @@ def load_config() -> dict:
             return cfg
         for row in ws.get_all_values():
             key = row[0].strip() if row else ""
-            # 헤더행("key") 및 빈 키 건너뜀
             if len(row) >= 2 and key and key.lower() != "key":
                 cfg[key] = row[1].strip()
     except Exception:
@@ -86,7 +114,7 @@ def load_config() -> dict:
     return cfg
 
 
-# ── 갤러리 게시글 수 (빠른 조회) ──────────────────────────────────
+# ── 갤러리 게시글 수 ──────────────────────────────────────────────
 
 @st.cache_data(ttl=300)
 def get_count(url: str) -> int:
@@ -124,7 +152,7 @@ def load_gallery(url: str) -> pd.DataFrame:
                 continue
             rows.append({
                 "글번호": a[0], "제목": a[1],
-                "작성자": d[0], "날짜":   d[1], "링크": d[2],
+                "작성자": d[0], "날짜":  d[1], "링크": d[2],
                 "댓글수": d[3] or "0", "조회수": d[4] or "0", "추천수": d[5] or "0",
             })
         if not rows:
@@ -139,14 +167,9 @@ def load_gallery(url: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-# ── 인기글 계산 ────────────────────────────────────────────────────
+# ── 인기글 (최근 24h 우선 → 7일 → 전체) ─────────────────────────
 
 def get_hot_posts(df: pd.DataFrame, n: int = 5) -> tuple:
-    """
-    최근 24시간 내 인기글 우선 (3개 미만이면 7일로 확장, 그래도 없으면 전체).
-    공지글(글번호 비숫자)은 이미 로드 단계에서 제외됨.
-    반환: (DataFrame, period_label: str)
-    """
     if df.empty:
         return pd.DataFrame(), "전체"
     tmp = df.copy()
@@ -160,7 +183,7 @@ def get_hot_posts(df: pd.DataFrame, n: int = 5) -> tuple:
     return pd.DataFrame(), "전체"
 
 
-# ── 컬럼명 탐색 ────────────────────────────────────────────────────
+# ── 유틸 ──────────────────────────────────────────────────────────
 
 def find_col(df: pd.DataFrame, *keywords) -> str | None:
     for kw in keywords:
@@ -169,8 +192,6 @@ def find_col(df: pd.DataFrame, *keywords) -> str | None:
                 return c
     return None
 
-
-# ── 시간 ago 표시 ─────────────────────────────────────────────────
 
 def time_ago(s: str) -> str:
     try:
@@ -183,8 +204,6 @@ def time_ago(s: str) -> str:
     except Exception:
         return str(s) or "-"
 
-
-# ── 상태 배지 HTML ────────────────────────────────────────────────
 
 def bdg(msg: str) -> str:
     m = str(msg).strip()

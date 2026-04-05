@@ -52,19 +52,24 @@ def render_sidebar():
             "</div>"
             "<div style='height:1.5px;background:#1E1E1E;margin:0 16px'></div>"
             "<div style='padding:14px 20px 4px'>"
-            "<p style='font-size:10px;font-weight:700;color:#757575;"
-            "letter-spacing:1px;text-transform:uppercase;margin:0'>MENU</p>"
+            f"<p style='font-size:10px;font-weight:700;color:#757575;"
+            f"letter-spacing:1px;text-transform:uppercase;margin:0'>"
+            f"{cfg.get('sidebar_sec_menu', 'MENU')}</p>"
             "</div>",
             unsafe_allow_html=True,
         )
         if st.button(cfg.get("sidebar_menu_home", "🏠 메인 대시보드"), use_container_width=True, key="sb_main"):
             st.session_state.page = "main"
             st.rerun()
+        if st.button(cfg.get("sidebar_refresh", "🔄 새로고침"), use_container_width=True, key="sb_refresh"):
+            st.cache_data.clear()
+            st.rerun()
         if not df.empty:
             st.markdown(
                 "<div style='padding:14px 20px 4px'>"
-                "<p style='font-size:10px;font-weight:700;color:#757575;"
-                "letter-spacing:1px;text-transform:uppercase;margin:0'>갤러리</p>"
+                f"<p style='font-size:10px;font-weight:700;color:#757575;"
+                f"letter-spacing:1px;text-transform:uppercase;margin:0'>"
+                f"{cfg.get('sidebar_sec_gall', '갤러리')}</p>"
                 "</div>",
                 unsafe_allow_html=True,
             )
@@ -76,7 +81,6 @@ def render_sidebar():
                 if st.button(lbl, use_container_width=True, key=f"sb_{gid}"):
                     st.session_state.page = gid
                     st.rerun()
-        # 사이드바 하단 정보 (고정 X — 자연스러운 흐름)
         st.markdown(
             "<div style='padding:16px 20px;border-top:1px solid #E5E5E5;margin-top:20px'>"
             f"<p class='sub' style='margin:0'>DC-Pickaxe {cfg['app_version']}</p>"
