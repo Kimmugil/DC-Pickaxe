@@ -1,7 +1,7 @@
-streamlit
-pandas
-gspread
-google-auth
-python-dotenv
-beautifulsoup4
-requests
+streamlit>=1.40.0
+pandas>=2.0.0
+gspread>=6.0.0
+google-auth>=2.30.0
+python-dotenv>=1.0.0
+beautifulsoup4>=4.12.0
+requests>=2.31.0

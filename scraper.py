@@ -1,172 +1,138 @@
 import os
-import json
 import time
 import random
-import urllib3
 import requests
 from bs4 import BeautifulSoup
-import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta, timezone
+from utils import get_gspread_client, get_url_prefix, get_post_content, parse_date_str, extract_engagement, DEFAULT_HEADERS
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-def get_gspread_client():
-    creds_json = os.environ.get('GCP_CREDENTIALS')
-    if not creds_json:
-        raise ValueError("GCP_CREDENTIALS 환경 변수가 설정되지 않았습니다.")
-    
-    creds_dict = json.loads(creds_json)
-    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(creds)
-
-def get_url_prefix(gallery_type):
-    if gallery_type == '일반': return "board"
-    elif gallery_type == '미니': return "mini/board"
-    else: return "mgallery/board"
-
-def get_post_content(gallery_id, post_id, headers, gallery_type):
-    url_prefix = get_url_prefix(gallery_type)
-    view_url = f"https://gall.dcinside.com/{url_prefix}/view/?id={gallery_id}&no={post_id}"
-    try:
-        time.sleep(random.uniform(1.5, 3.0)) 
-        resp = requests.get(view_url, headers=headers, verify=False, timeout=6)
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            content_div = soup.select_one('.write_div')
-            if content_div:
-                return content_div.get_text(separator=' ', strip=True)
-        return ""
-    except Exception: return ""
 
 def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Connection": "keep-alive"
-    }
-
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST)
     url_prefix = get_url_prefix(gallery_type)
-    
+
     all_new_posts = []
     page = 1
-    max_pages = 1 if is_first_run else 50 
+    max_pages = 1 if is_first_run else 50
     stop_crawling = False
-    
+
     while page <= max_pages and not stop_crawling:
         list_url = f"https://gall.dcinside.com/{url_prefix}/lists/?id={gallery_id}&page={page}"
         try:
-            response = requests.get(list_url, headers=headers, verify=False, timeout=6)
+            response = requests.get(list_url, headers=DEFAULT_HEADERS, verify=False, timeout=6)
             if response.status_code != 200:
                 print(f"[{gallery_id}] IP 차단 의심: 상태 코드 {response.status_code}")
                 break
-                
+
             soup = BeautifulSoup(response.text, 'html.parser')
             rows = soup.select('.us-post')
-            if not rows: break
-                
+            if not rows:
+                break
+
             for row in rows:
                 gall_num_elem = row.select_one('.gall_num')
                 gall_num_text = gall_num_elem.text.strip() if gall_num_elem else ""
-                
+
                 gall_subject_elem = row.select_one('.gall_subject')
                 gall_subject_text = gall_subject_elem.text.strip() if gall_subject_elem else ""
-                
-                # 공지글 여부 확인
-                is_notice = (not gall_num_text.isdigit()) or ('공지' in gall_subject_text) or (row.select_one('.icon_notice') is not None)
-                
+
+                is_notice = (
+                    not gall_num_text.isdigit()
+                    or '공지' in gall_subject_text
+                    or row.select_one('.icon_notice') is not None
+                )
+
                 title_elem = row.select_one('.gall_tit a:not(.reply_num)')
-                if not title_elem: continue
-                
+                if not title_elem:
+                    continue
+
                 href = title_elem.get('href', '')
-                if 'no=' not in href: continue
-                
+                if 'no=' not in href:
+                    continue
+
                 post_id = href.split('no=')[1].split('&')[0]
-                if not post_id.isdigit(): continue
-                    
-                # [핵심] 공지글은 이미 시트에 있어도 무시하고 계속 진행! 일반 글만 중복 검사 적용
+                if not post_id.isdigit():
+                    continue
+
                 if post_id in existing_ids:
                     if is_notice:
-                        continue 
+                        continue
                     else:
-                        print(f"[{gallery_id}] {post_id}번 글 중복 발견. 크롤링 조기 종료.")
+                        print(f"[{gallery_id}] {post_id}번 글 중복 발견. 크롤링 종료.")
                         stop_crawling = True
                         break
-                    
+
                 title = title_elem.text.strip()
                 writer = row.select_one('.gall_writer')['data-nick']
-                
-                date_str = row.select_one('.gall_date').text.strip()
-                if ':' in date_str:
-                    date_val = f"{now.strftime('%Y-%m-%d')} {date_str}"
-                elif date_str.count('.') == 1:
-                    date_val = f"{now.year}-{date_str.replace('.', '-')}"
-                else:
-                    date_val = f"20{date_str.replace('.', '-')}"
-                    
+                date_val = parse_date_str(row.select_one('.gall_date').text.strip(), now)
+                comment_count, view_count, recommend_count = extract_engagement(row)
                 post_link = f"https://gall.dcinside.com/{url_prefix}/view/?id={gallery_id}&no={post_id}"
-                content = get_post_content(gallery_id, post_id, headers, gallery_type)
-                
-                all_new_posts.append([post_id, title, content, writer, date_val, post_link, "0", "0", "0"])
-                
+                content = get_post_content(gallery_id, post_id, DEFAULT_HEADERS, gallery_type)
+
+                all_new_posts.append([
+                    post_id, title, content, writer, date_val,
+                    post_link, comment_count, view_count, recommend_count
+                ])
+
         except Exception as e:
-            print(f"[{gallery_id}] 크롤링 에러: {e}"); break
-            
+            print(f"[{gallery_id}] 크롤링 에러: {e}")
+            break
+
         page += 1
         time.sleep(random.uniform(1.0, 2.0))
-        
+
     return all_new_posts
+
 
 def main():
     master_url = os.environ.get('MASTER_SHEET_URL')
     if not master_url:
         raise ValueError("MASTER_SHEET_URL 환경 변수가 없습니다.")
-        
+
     client = get_gspread_client()
     master_sheet = client.open_by_url(master_url).sheet1
-    
+
     raw_records = master_sheet.get_all_records()
     gallery_list = [{k.strip(): v for k, v in record.items()} for record in raw_records]
-    
+
     KST = timezone(timedelta(hours=9))
-    
+
     for idx, g in enumerate(gallery_list):
         gallery_id = g.get('갤러리ID')
         sheet_url = g.get('저장시트 URL')
         gallery_name = g.get('갤러리명')
         gallery_type = g.get('갤러리타입', '마이너').strip()
-        
+
         print(f"\n>>> [{gallery_name}] 수집 시작...")
-        
+
         try:
             target_sheet = client.open_by_url(sheet_url).sheet1
             existing_ids = set([x for x in target_sheet.col_values(1) if x.isdigit()])
             is_first_run = (len(existing_ids) == 0)
-            
+
             new_posts = scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type)
-            
+
             if new_posts:
                 new_posts.reverse()
                 target_sheet.append_rows(new_posts)
                 result_msg = f"{len(new_posts)}개 수집"
             else:
                 result_msg = "새 글 없음"
-                
+
             print(f"[{gallery_name}] 결과: {result_msg}")
-            
+
             now_str = datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')
             master_sheet.update_cell(idx + 2, 4, now_str)
             master_sheet.update_cell(idx + 2, 5, result_msg)
-            
+
         except Exception as e:
             print(f"[{gallery_name}] 치명적 에러: {e}")
             master_sheet.update_cell(idx + 2, 4, datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S'))
             master_sheet.update_cell(idx + 2, 5, "에러 발생")
-            
+
         time.sleep(random.uniform(3.0, 5.0))
+
 
 if __name__ == "__main__":
     main()
