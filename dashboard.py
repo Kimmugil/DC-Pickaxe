@@ -386,13 +386,17 @@ def page_main(df, nc, ic, uc, rc, lc, counts):
                 else: sm['미실행'] += 1
             donut = svg_donut({k: v for k,v in sm.items() if v > 0})
             color_map = {"수집성공":"#22C55E","새글없음":"#60A5FA","에러":"#F87171","미실행":"#E5E7EB"}
-            legend = "".join(
-                f"<span style='display:inline-flex;align-items:center;gap:5px;margin:3px 8px 3px 0;"
-                f"font-size:12px;color:#6B7280'>"
-                f"<span style='width:10px;height:10px;border-radius:50%;background:{color_map.get(k,\"#999\")}'></span>"
-                f"{k} {v}</span>"
-                for k, v in sm.items() if v > 0
-            )
+            legend_parts = []
+            for k, v in sm.items():
+                if v > 0:
+                    color = color_map.get(k, "#999")
+                    legend_parts.append(
+                        f"<span style='display:inline-flex;align-items:center;gap:5px;margin:3px 8px 3px 0;"
+                        f"font-size:12px;color:#6B7280'>"
+                        f"<span style='width:10px;height:10px;border-radius:50%;background:{color}'></span>"
+                        f"{k} {v}</span>"
+                    )
+            legend = "".join(legend_parts)
             st.markdown(
                 "<div class='pastel-card'>"
                 "<p class='ctitle'>수집 상태 분포</p>"
