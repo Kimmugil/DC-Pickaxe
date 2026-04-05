@@ -1,0 +1,13 @@
+# Environments (환경 변수 파일 숨기기 - 제일 중요!)
+.env
+.venv
+env/
+venv/
+
+# Google Credentials (혹시 모를 키 파일 숨기기)
+*.json
+credentials.json
+
+# Python caches (파이썬 찌꺼기 파일들 숨기기)
+__pycache__/
+*.py[cod]
