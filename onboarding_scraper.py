@@ -73,6 +73,7 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
 
                 new_on_page = 0
                 today_skipped = 0
+                already_skipped = 0  # 이미 수집된 글 수 (종료 판단에서 제외)
 
                 for row in rows:
                     gall_num_elem = row.select_one('.gall_num')
@@ -97,8 +98,9 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
                     if not post_id.isdigit():
                         continue
 
-                    # 이미 수집된 글 건너뜀
+                    # 이미 수집된 글 건너뜀 (단, 종료 판단에서는 "글이 있는 것"으로 인식)
                     if post_id in existing_ids:
+                        already_skipped += 1
                         continue
 
                     # 날짜 계산
@@ -139,17 +141,23 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
                         time.sleep(rest_sec)
                         print(f"  ▶️  휴식 종료. 수집 재개!\n")
 
-                # 연속 빈 페이지 카운트 (오늘 글만 있는 페이지는 제외)
-                if new_on_page == 0 and today_skipped == 0:
+                # 연속 빈 페이지 카운트
+                # - 이미 수집된 글(already_skipped)이 있는 페이지는 "글이 있음"으로 간주 → 리셋
+                # - 오늘 글만 있는 페이지도 리셋
+                # - 페이지에 게시글이 아예 없을 때만 카운트 (갤러리 끝 도달)
+                any_post_on_page = new_on_page + today_skipped + already_skipped
+                if any_post_on_page == 0:
                     consecutive_empty_pages += 1
-                    print(f"  [페이지 {page}] 새 글 없음 "
+                    print(f"  [페이지 {page}] 게시글 없음 — 갤러리 끝 근처 "
                           f"({consecutive_empty_pages}/{MAX_EMPTY_PAGES} 연속)")
                     if consecutive_empty_pages >= MAX_EMPTY_PAGES:
-                        print(f"\n  수집 완료: {MAX_EMPTY_PAGES}페이지 연속 새 글 없음 → 이미 다 수집된 구간입니다.")
+                        print(f"\n  수집 완료: {MAX_EMPTY_PAGES}페이지 연속 게시글 없음 → 갤러리 끝 도달.")
                         break
                 else:
                     consecutive_empty_pages = 0
-                    if today_skipped > 0 and new_on_page == 0:
+                    if already_skipped > 0 and new_on_page == 0:
+                        print(f"  [페이지 {page}] 기수집 {already_skipped}개 건너뜀 → 계속 탐색...")
+                    elif today_skipped > 0 and new_on_page == 0:
                         print(f"  [페이지 {page}] 오늘 글 {today_skipped}개 건너뜀 → 다음 페이지로...")
 
             except Exception as e:
