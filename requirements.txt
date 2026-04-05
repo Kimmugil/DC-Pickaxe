@@ -1,5 +1,7 @@
-requests
-beautifulsoup4
+streamlit
+pandas
 gspread
 google-auth
-urllib3
+python-dotenv
+beautifulsoup4
+requests
