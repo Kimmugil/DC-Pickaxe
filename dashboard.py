@@ -10,7 +10,7 @@ st.set_page_config(
     page_title="DC-Pickaxe 관제탑",
     page_icon="⛏️",
     layout="wide",
-    initial_sidebar_state="auto",  # 모바일에서 자동 접힘
+    initial_sidebar_state="expanded",
 )
 inject_css()
 

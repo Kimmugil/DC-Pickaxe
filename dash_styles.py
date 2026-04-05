@@ -9,12 +9,13 @@ _CSS = (
     "[data-testid='stToolbar']{display:none!important}"
     ".block-container{padding:1rem 1.4rem!important;max-width:1340px!important}"
 
-    # ── 모바일 ≡ 버튼 강제 표시 ───────────────────────────────────
-    "[data-testid='stSidebarCollapsedControl']{"
-    "display:flex!important;visibility:visible!important;opacity:1!important;"
-    "pointer-events:auto!important}"
+    # ── 사이드바 열림 고정 (≡ 버튼 + « 버튼 모두 숨김) ────────────
+    "[data-testid='stSidebarCollapsedControl']{display:none!important}"
+    "section[data-testid='stSidebar'] [data-testid='stBaseButton-headerNoPadding']{"
+    "display:none!important}"
+    "section[data-testid='stSidebar'] button[kind='header']{display:none!important}"
 
-    # ── Sidebar ────────────────────────────────────────────────────
+    # ── Sidebar 기본 ───────────────────────────────────────────────
     "section[data-testid='stSidebar']{"
     "background:#FFFFFF!important;"
     "border-right:1.5px solid #1E1E1E!important}"
@@ -22,33 +23,36 @@ _CSS = (
     "padding:0 0 80px 0!important;max-width:none!important}"
 
     # ── 버튼: 메인 영역 ───────────────────────────────────────────
-    "[data-testid='stMain'] [data-testid='baseButton-secondary']{"
+    "[data-testid='stMain'] button[data-testid='baseButton-secondary']{"
     "background:#FFFFFF!important;border:1.5px solid #1E1E1E!important;"
     "border-radius:10px!important;color:#1E1E1E!important;font-weight:600!important;"
     "box-shadow:none!important;font-size:13px!important}"
-    "[data-testid='stMain'] [data-testid='baseButton-secondary']:hover{"
+    "[data-testid='stMain'] button[data-testid='baseButton-secondary']:hover{"
     "background:#F4F5F7!important}"
 
-    # ── 버튼: 사이드바 ────────────────────────────────────────────
-    "section[data-testid='stSidebar'] [data-testid='baseButton-secondary']{"
-    "background:transparent!important;border:1.5px solid #1E1E1E!important;"
-    "box-shadow:none!important;color:#1E1E1E!important;font-weight:500!important;"
-    "padding:8px 14px!important;border-radius:8px!important;font-size:13px!important;"
-    "width:calc(100% - 16px)!important;margin:2px 8px!important;"
-    "transition:background .12s!important;"
+    # ── 버튼: 사이드바 (아웃라인 없음, 텍스트 좌측정렬) ────────────
+    "section[data-testid='stSidebar'] button[data-testid='baseButton-secondary']{"
+    "background:transparent!important;border:none!important;box-shadow:none!important;"
+    "color:#1E1E1E!important;font-weight:500!important;"
+    "padding:8px 16px!important;border-radius:6px!important;"
+    "width:100%!important;transition:background .12s!important;"
     "display:flex!important;align-items:center!important;"
     "justify-content:flex-start!important;text-align:left!important}"
-    "section[data-testid='stSidebar'] [data-testid='baseButton-secondary'] p,"
-    "section[data-testid='stSidebar'] [data-testid='baseButton-secondary'] div{"
-    "text-align:left!important;width:100%!important;margin:0!important;"
-    "justify-content:flex-start!important}"
-    "section[data-testid='stSidebar'] [data-testid='baseButton-secondary']:hover{"
+    "section[data-testid='stSidebar'] button[data-testid='baseButton-secondary'] p{"
+    "text-align:left!important;width:100%!important;margin:0!important}"
+    "section[data-testid='stSidebar'] button[data-testid='baseButton-secondary']:hover{"
     "background:#F4F5F7!important}"
+    # .stButton wrapper 너비 강제
+    "section[data-testid='stSidebar'] .stButton{width:100%!important}"
+    "section[data-testid='stSidebar'] .stButton>button{width:100%!important}"
 
-    # ── st.container(border=True) 오버라이드 → .lc 스타일 적용 ──
+    # ── st.container(border=True) → .lc 와 동일하게 ───────────────
     "[data-testid='stVerticalBlockBorderWrapper']{"
     "background:#FFFFFF!important;border:1.5px solid #1E1E1E!important;"
-    "border-radius:20px!important}"
+    "border-radius:20px!important;overflow:hidden!important;"
+    "margin-bottom:12px!important;word-break:keep-all!important}"
+    "[data-testid='stVerticalBlockBorderWrapper']>[data-testid='stVerticalBlock']{"
+    "padding:20px 22px!important;gap:0!important}"
 
     # ── Cards ──────────────────────────────────────────────────────
     ".lc{background:#FFFFFF;border:1.5px solid #1E1E1E;border-radius:20px;"
@@ -77,12 +81,6 @@ _CSS = (
     # ── 인기글 카드 ────────────────────────────────────────────────
     ".hc{background:#FFFCF0;border:1.5px solid #1E1E1E;border-radius:14px;"
     "padding:14px 16px;margin-bottom:0;word-break:keep-all;height:100%}"
-    ".hc-gal{font-size:10px;font-weight:700;color:#757575;"
-    "text-transform:uppercase;letter-spacing:.6px;margin:0 0 6px}"
-    ".hc-title{font-size:13px;font-weight:700;color:#1E1E1E;"
-    "margin:0 0 6px;display:-webkit-box;-webkit-line-clamp:2;"
-    "-webkit-box-orient:vertical;overflow:hidden}"
-    ".hc-meta{font-size:11px;color:#757575;margin-top:4px}"
     ".hc-score{display:inline-block;background:#FFD166;border:1.5px solid #1E1E1E;"
     "border-radius:6px;font-size:11px;font-weight:700;padding:1px 7px;margin-bottom:6px}"
 
