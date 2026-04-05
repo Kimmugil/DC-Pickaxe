@@ -15,17 +15,29 @@ _CSS = (
     "border-right:1.5px solid #1E1E1E!important}"
     "section[data-testid='stSidebar'] .block-container{"
     "padding:0 0 80px 0!important;max-width:none!important}"
-    # 버튼 기본 스타일
+    # 메인 영역 버튼 — 카드 스타일 (흰 배경 + 검은 테두리)
+    ".main .stButton>button,[data-testid='stAppViewContainer'] .stButton>button{"
+    "background:#FFFFFF!important;border:1.5px solid #1E1E1E!important;"
+    "border-radius:10px!important;color:#1E1E1E!important;font-weight:600!important;"
+    "box-shadow:none!important;font-size:13px!important}"
+    ".main .stButton>button:hover,[data-testid='stAppViewContainer'] .stButton>button:hover{"
+    "background:#F4F5F7!important}"
+    # 사이드바 버튼 — 텍스트 링크 스타일 (메인 규칙 오버라이드)
     "section[data-testid='stSidebar'] .stButton>button{"
     "background:transparent!important;border:none!important;box-shadow:none!important;"
     "color:#1E1E1E!important;font-weight:500!important;"
     "padding:9px 20px!important;border-radius:0!important;font-size:13.5px!important;"
     "width:100%!important;transition:background .12s!important;"
-    "border-left:3px solid transparent!important;"
-    "display:flex!important;align-items:center!important;justify-content:flex-start!important}"
-    # 버튼 내부 텍스트 왼쪽 정렬
-    "section[data-testid='stSidebar'] .stButton>button p{"
-    "text-align:left!important;width:100%!important}"
+    "border-left:3px solid transparent!important}"
+    # 사이드바 버튼 내부 좌측정렬 (모든 내부 요소 대상)
+    "section[data-testid='stSidebar'] .stButton>button,"
+    "section[data-testid='stSidebar'] .stButton>button>div,"
+    "section[data-testid='stSidebar'] [data-testid='baseButton-secondary']{"
+    "display:flex!important;align-items:center!important;"
+    "justify-content:flex-start!important;text-align:left!important}"
+    "section[data-testid='stSidebar'] .stButton>button p,"
+    "section[data-testid='stSidebar'] .stButton>button div p{"
+    "text-align:left!important;width:100%!important;margin:0!important}"
     "section[data-testid='stSidebar'] .stButton>button:hover{"
     "background:#F4F5F7!important;border-left-color:#1E1E1E!important}"
 

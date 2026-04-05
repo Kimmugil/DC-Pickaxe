@@ -2,8 +2,8 @@ name: DC Gallery Scraper Bot
 
 on:
   schedule:
-    # 15분마다 실행 (GitHub Actions 특성상 실제 실행은 수 분 지연될 수 있음)
-    - cron: '*/15 * * * *'
+    # 1시간마다 실행 (매 시 정각, GitHub Actions 특성상 수 분 지연될 수 있음)
+    - cron: '0 * * * *'
   workflow_dispatch: # 수동으로도 버튼을 눌러서 실행할 수 있게 해줌
 
 jobs:

@@ -7,7 +7,7 @@ from dash_charts import CHART_COLORS, svg_bar_h, svg_donut, STATUS_COLORS
 
 def _hot_post_card(gn: str, gdf, color: str, gid: str) -> None:
     """갤러리별 인기글 카드 1개 렌더링 (TOP 1)"""
-    hot = get_hot_posts(gdf, n=1)
+    hot, _ = get_hot_posts(gdf, n=1)
     gal_label = f"<p class='hc-gal'>{gn}</p>"
     if hot.empty:
         st.markdown(

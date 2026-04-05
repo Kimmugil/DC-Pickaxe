@@ -53,7 +53,7 @@ def load_master() -> pd.DataFrame | None:
 # 탭이 없으면 _DEFAULT_CONFIG 그대로 사용
 # 탭 구조: A열=key, B열=value
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def load_config() -> dict:
     cfg = dict(_DEFAULT_CONFIG)
     c = get_client()
@@ -63,12 +63,24 @@ def load_config() -> dict:
     if not url:
         return cfg
     try:
-        ws = c.open_by_url(url).worksheet("config")
+        wb = c.open_by_url(url)
+        ws = None
+        # 대소문자 무관하게 탭 탐색
+        for name in ["config", "Config", "CONFIG", "설정"]:
+            try:
+                ws = wb.worksheet(name)
+                break
+            except Exception:
+                continue
+        if ws is None:
+            return cfg
         for row in ws.get_all_values():
-            if len(row) >= 2 and row[0].strip():
-                cfg[row[0].strip()] = row[1].strip()
+            key = row[0].strip() if row else ""
+            # 헤더행("key") 및 빈 키 건너뜀
+            if len(row) >= 2 and key and key.lower() != "key":
+                cfg[key] = row[1].strip()
     except Exception:
-        pass   # config 탭 없으면 기본값 사용
+        pass
     return cfg
 
 
@@ -127,17 +139,23 @@ def load_gallery(url: str) -> pd.DataFrame:
 
 # ── 인기글 계산 ────────────────────────────────────────────────────
 
-def get_hot_posts(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
-    """추천수×2 + 댓글수 점수 기준 상위 n개 반환"""
+def get_hot_posts(df: pd.DataFrame, n: int = 5) -> tuple:
+    """
+    최근 24시간 내 인기글 우선 (3개 미만이면 7일로 확장, 그래도 없으면 전체).
+    공지글(글번호 비숫자)은 이미 로드 단계에서 제외됨.
+    반환: (DataFrame, period_label: str)
+    """
     if df.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(), "전체"
     tmp = df.copy()
     tmp["점수"] = tmp["추천수"] * 2 + tmp["댓글수"]
-    return (
-        tmp.nlargest(n, "점수")
-        [["글번호", "제목", "날짜", "댓글수", "추천수", "링크", "점수"]]
-        .reset_index(drop=True)
-    )
+    cols = ["글번호", "제목", "날짜", "댓글수", "추천수", "링크", "점수"]
+    today = datetime.now(KST).date()
+    for days, label in [(1, "최근 24시간"), (7, "최근 7일"), (99999, "전체")]:
+        pool = tmp[tmp["날짜_date"] >= today - timedelta(days=days)] if days < 99999 else tmp
+        if len(pool) >= min(n, 3):
+            return pool.nlargest(n, "점수")[cols].reset_index(drop=True), label
+    return pd.DataFrame(), "전체"
 
 
 # ── 컬럼명 탐색 ────────────────────────────────────────────────────

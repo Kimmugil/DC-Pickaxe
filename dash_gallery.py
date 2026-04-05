@@ -44,17 +44,17 @@ def render(row, nc, ic, uc, rc, lc, cfg):
     days  = max((dmax - dmin).days + 1, 1) if dmin and dmax else 1
     avg   = round(total / days, 1)
 
-    # ── KPI 카드 ──────────────────────────────────────────────────
+    # ── KPI 카드 (순수 B&W, 색상 악센트 없음) ─────────────────────
     m1, m2, m3, m4 = st.columns(4)
-    for col, accent, icon, val, lbl in [
-        (m1, "#FFD166", "📄", f"{total:,}건",              "총 수집 게시글"),
-        (m2, "#82C29A", "📅", str(dmin) if dmin else "-",  "최초 수집 날짜"),
-        (m3, "#6DC2FF", "🗓️", str(dmax) if dmax else "-",  "최근 수집 날짜"),
-        (m4, "#FF9F9F", "📈", f"{avg}건/일",               "일평균 게시글"),
+    for col, icon, val, lbl in [
+        (m1, "📄", f"{total:,}건",             "총 수집 게시글"),
+        (m2, "📅", str(dmin) if dmin else "-", "최초 수집 날짜"),
+        (m3, "🗓️", str(dmax) if dmax else "-", "최근 수집 날짜"),
+        (m4, "📈", f"{avg}건/일",              "일평균 게시글"),
     ]:
         with col:
             st.markdown(
-                f"<div class='mc' style='border-top:3px solid {accent}'>"
+                f"<div class='mc'>"
                 f"<div style='font-size:20px;margin-bottom:6px'>{icon}</div>"
                 f"<div class='mval' style='font-size:20px'>{val}</div>"
                 f"<div class='mlbl'>{lbl}</div>"
@@ -64,11 +64,11 @@ def render(row, nc, ic, uc, rc, lc, cfg):
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # ── 인기글 TOP 5 ──────────────────────────────────────────────
-    hot = get_hot_posts(gdf, n=5)
+    # ── 인기글 TOP 5 (최근 24h 우선, 미달 시 7일) ─────────────────
+    hot, period = get_hot_posts(gdf, n=5)
     if not hot.empty:
         st.markdown("<p class='sec'>🔥 인기글 TOP 5</p>", unsafe_allow_html=True)
-        st.caption("추천수×2 + 댓글수 점수 기준")
+        st.caption(f"추천수×2 + 댓글수 점수 기준 — {period} 내 게시글")
         for rank, (_, hr) in enumerate(hot.iterrows(), 1):
             link  = str(hr.get("링크", ""))
             title = str(hr.get("제목", ""))
@@ -83,10 +83,10 @@ def render(row, nc, ic, uc, rc, lc, cfg):
             )
             rank_badge = f"<span style='font-size:15px;font-weight:900;margin-right:8px'>#{rank}</span>"
             st.markdown(
-                f"<div class='hc'>"
+                f"<div class='hc' style='margin-bottom:10px'>"
                 f"<div class='hc-title'>{rank_badge}{href_html}</div>"
                 f"<div class='hc-meta'>"
-                f"📅 {date} &nbsp;👍 추천 {rec} &nbsp;💬 댓글 {cmt} &nbsp;🏆 점수 {score}"
+                f"📅 {date} &nbsp; 👍 추천 {rec} &nbsp; 💬 댓글 {cmt} &nbsp; 🏆 점수 {score}"
                 f"</div>"
                 f"</div>",
                 unsafe_allow_html=True,
