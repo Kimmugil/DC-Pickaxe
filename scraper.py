@@ -25,13 +25,14 @@ def get_google_sheet():
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
     
-    # 본인의 구글 시트 URL 또는 문서 ID 입력 (이 부분은 시트 주소로 교체 필요)
+    # 무길공주의 구글 시트 URL 적용 완료!
     sheet_url = "https://docs.google.com/spreadsheets/d/10vkTnnqF_Ryu3KIwDr6UA_nYSAPHQWM2ty0yppFxDIs/edit?gid=0#gid=0"
     sheet = client.open_by_url(sheet_url).sheet1
     return sheet
 
 def scrape_gallery(gallery_id):
-    url = f"https://gall.dcinside.com/board/lists/?id={gallery_id}"
+    # [수정됨] 마이너 갤러리 전용 주소 (mgallery) 반영 완료!
+    url = f"https://gall.dcinside.com/mgallery/board/lists/?id={gallery_id}"
     
     # 2. 우회 헤더 고정 (필수 요청 사항)
     headers = {
@@ -47,12 +48,15 @@ def scrape_gallery(gallery_id):
         # 4. HTTP 상태 코드가 200이 아닐 경우 예외 처리
         if response.status_code != 200:
             print(f"IP 차단 의심: 상태 코드 {response.status_code}")
-            return [] # 프로세스가 죽지 않고 빈 리스트를 반환하여 안전하게 종료
+            return []
             
+        # [수정됨] 혹시 디시에서 빈 화면이나 캡챠를 주는지 확인하기 위한 로그 출력
+        print("페이지 내용 미리보기:", response.text[:500])
+        
         soup = BeautifulSoup(response.text, 'html.parser')
         posts = []
         
-        # 게시글 목록 파싱 (디시인사이드 HTML 구조에 맞게 작성)
+        # 게시글 목록 파싱 
         rows = soup.select('.us-post')
         for row in rows:
             post_id = row.select_one('.gall_num').text.strip()
@@ -73,6 +77,7 @@ def scrape_gallery(gallery_id):
         return []
 
 def main():
+    # [수정됨] 메이플스토리 마이너 갤러리 ID 적용 완료!
     gallery_id = "maplerpg"
     sheet = get_google_sheet()
     
@@ -83,7 +88,7 @@ def main():
     # 디시인사이드 스크래핑
     new_posts = scrape_gallery(gallery_id)
     
-    # 5. 인간적인 랜덤 딜레이 적용 (목록/본문 요청 사이)
+    # 5. 인간적인 랜덤 딜레이 적용 
     time.sleep(random.uniform(0.5, 2.0))
     
     posts_to_add = []
@@ -94,8 +99,7 @@ def main():
     
     # 새로운 글이 있다면 구글 시트에 일괄 추가
     if posts_to_add:
-        # 가장 오래된 글부터 시트에 쌓이도록 순서 뒤집기
-        posts_to_add.reverse()
+        posts_to_add.reverse() # 오래된 글부터 시트에 쌓이도록
         sheet.append_rows(posts_to_add)
         print(f"{len(posts_to_add)}개의 새로운 글을 업데이트했습니다.")
     else:
