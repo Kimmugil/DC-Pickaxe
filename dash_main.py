@@ -81,6 +81,7 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                 hc.markdown(f"<p class='th'>{ht}</p>", unsafe_allow_html=True)
 
             # 데이터 행
+            st.markdown("<hr style='border:none;border-top:1px solid #E5E5E5;margin:4px 0'>", unsafe_allow_html=True)
             for i, (_, row) in enumerate(df.iterrows()):
                 color = CHART_COLORS[i % len(CHART_COLORS)]
                 gn  = str(row.get(nc, ""))
@@ -94,25 +95,13 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                 c1, c2, c3, c4, c5 = st.columns([2.8, 2, 1.6, 1.8, 3.2])
 
                 with c1:
-                    dot = (
-                        f"<span style='display:inline-block;width:9px;height:9px;"
-                        f"border-radius:50%;background:{color};"
-                        f"border:1.5px solid #1E1E1E;flex-shrink:0;margin-right:6px;"
-                        f"vertical-align:middle'></span>"
-                    )
-                    st.markdown(
-                        f"<p style='margin:6px 0 2px;font-size:12px;font-weight:700'>"
-                        f"{dot}{gn}</p>"
-                        f"<p class='sub' style='margin:0 0 4px;padding-left:15px'>{gi}</p>",
-                        unsafe_allow_html=True,
-                    )
-                    if st.button(
-                        cfg.get("btn_detail", "→ 상세보기"),
-                        key=f"tbl_{gi}",
-                        use_container_width=True,
-                    ):
+                    if st.button(gn, key=f"tbl_{gi}", use_container_width=True):
                         st.session_state.page = gi
                         st.rerun()
+                    st.markdown(
+                        f"<p class='sub' style='margin:-2px 0 6px;padding-left:2px'>{gi}</p>",
+                        unsafe_allow_html=True,
+                    )
 
                 with c2:
                     st.markdown(
@@ -123,7 +112,7 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                 with c3:
                     st.markdown(
                         f"<div class='rc' style='margin-top:6px;font-weight:700'>"
-                        f"📄 {cnt_txt}</div>",
+                        f"{cnt_txt}</div>",
                         unsafe_allow_html=True,
                     )
 
@@ -146,7 +135,7 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                             title = str(hr.get("제목", ""))
                             rec   = int(hr.get("추천수", 0))
                             cmt   = int(hr.get("댓글수", 0))
-                            t_short = title[:22] + "…" if len(title) > 22 else title
+                            t_short = title[:20] + "…" if len(title) > 20 else title
                             t_html = (
                                 f"<a href='{link}' target='_blank'"
                                 f" style='color:#1E1E1E;text-decoration:none'>{t_short}</a>"
@@ -163,6 +152,13 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                         hot_html += "<span class='sub'>—</span>"
                     hot_html += "</div>"
                     st.markdown(hot_html, unsafe_allow_html=True)
+
+                # 행 구분선
+                if i < len(df) - 1:
+                    st.markdown(
+                        "<hr style='border:none;border-top:1px solid #E5E5E5;margin:2px 0'>",
+                        unsafe_allow_html=True,
+                    )
 
             st.markdown(
                 f"<p class='sub' style='text-align:right;margin-top:4px'>"

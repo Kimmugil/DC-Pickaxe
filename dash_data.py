@@ -213,6 +213,6 @@ def bdg(msg: str) -> str:
         return '<span class="bdg berr">에러</span>'
     if "새 글 없음" in m:
         return '<span class="bdg bnfo">새 글 없음</span>'
-    if "개 수집" in m:
+    if "개 수집" in m or "업데이트" in m:
         return f'<span class="bdg bok">{m}</span>'
     return f'<span class="bdg bnone">{m}</span>'
