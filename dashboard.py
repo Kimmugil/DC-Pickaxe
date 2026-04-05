@@ -76,12 +76,13 @@ def render_sidebar():
                 if st.button(lbl, use_container_width=True, key=f"sb_{gid}"):
                     st.session_state.page = gid
                     st.rerun()
-        # 사이드바 하단 정보
+        # 사이드바 하단 정보 (고정 X — 자연스러운 흐름)
         st.markdown(
-            "<div style='position:fixed;bottom:0;padding:12px 20px;"
-            "border-top:1.5px solid #1E1E1E;background:white;width:inherit'>"
+            "<div style='padding:16px 20px;border-top:1px solid #E5E5E5;margin-top:20px'>"
             f"<p class='sub' style='margin:0'>DC-Pickaxe {cfg['app_version']}</p>"
             f"<p class='sub' style='margin:2px 0 0'>PM : {cfg['pm_name']}</p>"
+            "<p class='sub' style='margin:6px 0 0;font-size:10px;color:#AAAAAA'>"
+            "📱 모바일에서는 좌상단 ≡ 버튼으로 메뉴 열기</p>"
             "</div>",
             unsafe_allow_html=True,
         )
