@@ -11,11 +11,13 @@ KST = timezone(timedelta(hours=9))
 
 # 기본 UI 텍스트 (마스터시트 config 탭에서 덮어쓸 수 있음)
 _DEFAULT_CONFIG = {
-    "app_title":    "DC-Pickaxe 관제탑",
-    "app_subtitle": "디시인사이드 갤러리 자동 수집 모니터링",
-    "pm_name":      "김무길",
-    "app_version":  "1.0.0",
-    "announcement": "",   # 비워두면 배너 미표시
+    "app_title":        "DC-Pickaxe 관제탑",
+    "app_subtitle":     "디시인사이드 갤러리 자동 수집 모니터링",
+    "pm_name":          "김무길",
+    "app_version":      "1.0.0",
+    "announcement":     "",
+    "collection_note":  "봇 실행 시 갱신 (1시간 주기)",
+    "sidebar_menu_home":"🏠 메인 대시보드",
 }
 
 _SCOPES = [

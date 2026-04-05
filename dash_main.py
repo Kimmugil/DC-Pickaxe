@@ -48,26 +48,29 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
 
     # ── 헤더 ──────────────────────────────────────────────────────
-    hcol, rcol = st.columns([9, 1])
-    with hcol:
-        ann = cfg.get("announcement", "").strip()
-        ann_html = (
-            f"<div style='margin-top:8px;padding:6px 10px;background:#FFFCF0;"
-            f"border:1px solid #FFD166;border-radius:8px;font-size:12px;font-weight:600'>"
-            f"📢 {ann}</div>"
-        ) if ann else ""
-        st.markdown(
-            "<div class='lc' style='margin-bottom:14px;padding:18px 22px'>"
-            f"<p style='font-size:19px;font-weight:900;color:#1E1E1E;margin:0'>⛏️ {cfg['app_title']}</p>"
-            f"<p class='sub' style='margin:3px 0 0'>{cfg['app_subtitle']}</p>"
-            f"<p class='sub' style='margin:5px 0 0'>🕐 {now} (KST)</p>"
-            f"{ann_html}"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    with rcol:
-        st.markdown("<div style='padding-top:14px'></div>", unsafe_allow_html=True)
-        if st.button("🔄", use_container_width=True, key="rf_main", help="새로고침"):
+    ann = cfg.get("announcement", "").strip()
+    ann_html = (
+        f"<div style='margin-top:8px;padding:6px 10px;background:#FFFCF0;"
+        f"border:1px solid #FFD166;border-radius:8px;font-size:12px;font-weight:600'>"
+        f"📢 {ann}</div>"
+    ) if ann else ""
+    st.markdown(
+        "<div class='lc' style='margin-bottom:14px;padding:18px 22px'>"
+        "<div style='display:flex;justify-content:space-between;align-items:flex-start'>"
+        "<div>"
+        f"<p style='font-size:19px;font-weight:900;color:#1E1E1E;margin:0'>⛏️ {cfg['app_title']}</p>"
+        f"<p class='sub' style='margin:3px 0 0'>{cfg['app_subtitle']}</p>"
+        f"<p class='sub' style='margin:5px 0 0'>🕐 {now} (KST)</p>"
+        "</div>"
+        "</div>"
+        f"{ann_html}"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    _, rf_col = st.columns([11, 1])
+    with rf_col:
+        st.markdown("<div style='margin-top:-72px'></div>", unsafe_allow_html=True)
+        if st.button("↺", use_container_width=True, key="rf_main", help="새로고침"):
             st.cache_data.clear()
             st.rerun()
 
@@ -101,9 +104,10 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
     tbl_col, chart_col = st.columns([6, 4])
 
     with tbl_col:
-        st.markdown("<p class='sec'>📋 갤러리별 수집 현황</p>", unsafe_allow_html=True)
+        st.markdown("<div class='lc' style='padding:18px 20px'>", unsafe_allow_html=True)
+        st.markdown("<p class='ctitle'>📋 갤러리별 수집 현황</p>", unsafe_allow_html=True)
         hcols = st.columns([3.5, 2.5, 2, 2.5])
-        for c, t in zip(hcols, ["갤러리 (클릭하면 상세)", "수집 상태", "총 게시글", "마지막 실행"]):
+        for c, t in zip(hcols, ["갤러리", "수집 상태", "총 게시글", "마지막 실행"]):
             c.markdown(f"<p class='th'>{t}</p>", unsafe_allow_html=True)
 
         for i, (_, row) in enumerate(df.iterrows()):
@@ -150,9 +154,10 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                 )
 
         st.markdown(
-            "<p class='sub' style='text-align:right;margin-top:2px'>💡 게시글 수는 5분 주기 갱신</p>",
+            f"<p class='sub' style='text-align:right;margin-top:2px'>💡 {cfg.get('collection_note', '봇 실행 시 갱신 (1시간 주기)')}</p>",
             unsafe_allow_html=True,
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with chart_col:
         # 상태 도넛

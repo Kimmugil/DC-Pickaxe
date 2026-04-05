@@ -57,7 +57,7 @@ def render_sidebar():
             "</div>",
             unsafe_allow_html=True,
         )
-        if st.button("🏠  메인 대시보드", use_container_width=True, key="sb_main"):
+        if st.button(cfg.get("sidebar_menu_home", "🏠 메인 대시보드"), use_container_width=True, key="sb_main"):
             st.session_state.page = "main"
             st.rerun()
         if not df.empty:
