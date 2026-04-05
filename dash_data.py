@@ -39,7 +39,8 @@ _DEFAULT_CONFIG = {
     "col_last_run":       "마지막 실행",
     "col_hot":            "인기글",
     "hot_caption":        "추천×2 + 댓글 점수 기준",
-    "btn_detail":         "→ 상세보기",
+    "btn_gallery_link":   "📊 갤러리 바로가기",
+    "btn_detail":         "→ 수집 상세 보기",
     # 갤러리 상세
     "kpi_gall_total":     "총 수집 게시글",
     "kpi_gall_first":     "최초 수집",

@@ -19,7 +19,7 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
                 this_run += int(m.group(1))
     lr = str(df[rc].iloc[0]) if rc and not df.empty else ""
 
-    # ── 히어로 카드: 헤더 + KPI 통합 (순수 HTML) ───────────────────
+    # ── 히어로 카드: 헤더 + KPI 통합 ─────────────────────────────
     ann = cfg.get("announcement", "").strip()
     ann_html = (
         f"<div style='margin:10px 0 0;padding:7px 12px;background:#FFFCF0;"
@@ -28,9 +28,9 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
     ) if ann else ""
 
     kpi_data = [
-        (f"{tp:,}건",        cfg.get("kpi_total_posts", "총 수집 게시글"), "#F0FAF3", True),
-        (f"{this_run:,}건",  cfg.get("kpi_this_run",   "이번 수집량"),     "#FFFCF0", True),
-        (time_ago(lr),       cfg.get("kpi_last_run",   "마지막 실행"),     "#EFF8FF", False),
+        (f"{tp:,}건",       cfg.get("kpi_total_posts", "총 수집 게시글"), "#F0FAF3", True),
+        (f"{this_run:,}건", cfg.get("kpi_this_run",   "이번 수집량"),     "#FFFCF0", True),
+        (time_ago(lr),      cfg.get("kpi_last_run",   "마지막 실행"),     "#EFF8FF", False),
     ]
     kpi_html = ""
     for val, lbl, bg, has_border in kpi_data:
@@ -58,30 +58,14 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
         unsafe_allow_html=True,
     )
 
-    # ── 갤러리별 수집 현황 (카드 없이 깔끔하게) ──────────────────────
+    # ── 갤러리 카드 목록 ──────────────────────────────────────────
     st.markdown(
         f"<p class='sec'>{cfg.get('title_table', '📋 갤러리별 수집 현황')}</p>",
         unsafe_allow_html=True,
     )
 
-    # 컬럼 헤더
-    hcols = st.columns([2.6, 2, 1.6, 1.8, 3.4])
-    for hc, ht in zip(hcols, [
-        cfg.get("col_gallery",  "갤러리"),
-        cfg.get("col_status",   "수집 상태"),
-        cfg.get("col_posts",    "게시글"),
-        cfg.get("col_last_run", "마지막 실행"),
-        cfg.get("col_hot",      "인기글"),
-    ]):
-        hc.markdown(f"<p class='th'>{ht}</p>", unsafe_allow_html=True)
-
-    st.markdown(
-        "<div style='height:1px;background:#1E1E1E;margin:2px 0 6px'></div>",
-        unsafe_allow_html=True,
-    )
-
-    # 데이터 행
     for i, (_, row) in enumerate(df.iterrows()):
+        color = CHART_COLORS[i % len(CHART_COLORS)]
         gn  = str(row.get(nc, ""))
         gi  = str(row.get(ic, "")) if ic else str(i)
         rm  = str(row.get(lc, "")) if lc else ""
@@ -90,79 +74,105 @@ def render(df, nc, ic, uc, rc, lc, counts, cfg):
         cnt = counts.get(gn, -1)
         cnt_txt = f"{cnt:,}건" if cnt >= 0 else "—"
 
-        c1, c2, c3, c4, c5 = st.columns([2.6, 2, 1.6, 1.8, 3.4])
-
-        with c1:
-            if st.button(gn, key=f"tbl_{gi}", use_container_width=True):
-                st.session_state.page = gi
-                st.rerun()
-            st.markdown(
-                f"<p class='sub' style='margin:-2px 0 4px;padding-left:2px'>{gi}</p>",
-                unsafe_allow_html=True,
-            )
-
-        with c2:
-            st.markdown(
-                f"<div style='padding-top:6px'>{bdg(rm)}</div>",
-                unsafe_allow_html=True,
-            )
-
-        with c3:
-            st.markdown(
-                f"<p class='rc' style='font-weight:700'>{cnt_txt}</p>",
-                unsafe_allow_html=True,
-            )
-
-        with c4:
-            st.markdown(
-                f"<p class='rc sub'>🕐 {time_ago(lr2)}</p>",
-                unsafe_allow_html=True,
-            )
-
-        with c5:
-            hot_html = "<div style='padding-top:4px'>"
-            if su.startswith("http"):
-                gdf = load_gallery(su)
-                hot, _ = get_hot_posts(gdf, n=1)
-                if not hot.empty:
-                    hr    = hot.iloc[0]
-                    link  = str(hr.get("링크", ""))
-                    title = str(hr.get("제목", ""))
-                    rec   = int(hr.get("추천수", 0))
-                    cmt   = int(hr.get("댓글수", 0))
-                    t_short = title[:20] + "…" if len(title) > 20 else title
-                    t_html = (
-                        f"<a href='{link}' target='_blank'"
-                        f" style='color:#1E1E1E;text-decoration:none'>{t_short}</a>"
-                        if link.startswith("http") else t_short
-                    )
-                    hot_html += (
-                        f"<div style='font-size:12px;font-weight:600;"
-                        f"line-height:1.4;margin-bottom:2px'>🔥 {t_html}</div>"
-                        f"<div class='sub'>👍 {rec} &nbsp; 💬 {cmt}</div>"
-                    )
-                else:
-                    hot_html += "<span class='sub'>—</span>"
+        # 인기글 미리보기
+        hot_section = (
+            "<div style='font-size:12px;color:#AAAAAA'>로딩 중...</div>"
+        )
+        if su.startswith("http"):
+            gdf = load_gallery(su)
+            hot, _ = get_hot_posts(gdf, n=1)
+            if not hot.empty:
+                hr    = hot.iloc[0]
+                link  = str(hr.get("링크", ""))
+                title = str(hr.get("제목", ""))
+                rec   = int(hr.get("추천수", 0))
+                cmt   = int(hr.get("댓글수", 0))
+                t_short = title[:28] + "…" if len(title) > 28 else title
+                t_tag = (
+                    f"<a href='{link}' target='_blank'"
+                    f" style='color:#1E1E1E;text-decoration:none;font-weight:600'>"
+                    f"{t_short}</a>"
+                    if link.startswith("http") else
+                    f"<span style='font-weight:600'>{t_short}</span>"
+                )
+                hot_section = (
+                    f"<div style='font-size:13px;line-height:1.5'>🔥 {t_tag}</div>"
+                    f"<div class='sub' style='margin-top:4px'>👍 {rec} &nbsp; 💬 {cmt}</div>"
+                )
             else:
-                hot_html += "<span class='sub'>—</span>"
-            hot_html += "</div>"
-            st.markdown(hot_html, unsafe_allow_html=True)
+                hot_section = "<span class='sub'>인기글 없음</span>"
+        else:
+            hot_section = "<span class='sub'>—</span>"
 
-        if i < len(df) - 1:
-            st.markdown(
-                "<div style='height:1px;background:#E5E5E5;margin:4px 0'></div>",
-                unsafe_allow_html=True,
-            )
+        dot = (
+            f"<span style='display:inline-block;width:10px;height:10px;"
+            f"border-radius:50%;background:{color};border:1.5px solid #1E1E1E;"
+            f"flex-shrink:0;vertical-align:middle;margin-right:6px'></span>"
+        )
+
+        # ── 카드 전체 (순수 HTML) — 두 버튼 모두 링크로 처리 ───────────
+        lbl_link   = cfg.get("btn_gallery_link", "📊 갤러리 바로가기")
+        lbl_detail = cfg.get("btn_detail",        "→ 수집 상세 보기")
+
+        link_btn = (
+            f"<a href='{su}' target='_blank'"
+            f" style='display:flex;align-items:center;justify-content:center;"
+            f"flex:1;padding:11px 6px;border-right:1.5px solid #1E1E1E;"
+            f"font-size:13px;font-weight:600;color:#1E1E1E;text-decoration:none;"
+            f"background:#FFFFFF'>{lbl_link}</a>"
+        ) if su.startswith("http") else (
+            f"<div style='flex:1;border-right:1.5px solid #1E1E1E'></div>"
+        )
+
+        detail_btn = (
+            f"<a href='?gallery={gi}'"
+            f" style='display:flex;align-items:center;justify-content:center;"
+            f"flex:1;padding:11px 6px;"
+            f"font-size:13px;font-weight:600;color:#1E1E1E;text-decoration:none;"
+            f"background:#FFFFFF'>{lbl_detail}</a>"
+        )
+
+        st.markdown(
+            f"<div class='lc' style='padding:0;overflow:hidden;margin-bottom:16px'>"
+            # 헤더
+            f"<div style='padding:14px 18px 10px'>"
+            f"<div style='display:flex;align-items:center;"
+            f"justify-content:space-between;flex-wrap:wrap;gap:6px'>"
+            f"<span style='font-size:15px;font-weight:900'>{dot}{gn}</span>"
+            f"{bdg(rm)}"
+            f"</div>"
+            f"<p class='sub' style='margin:5px 0 0;padding-left:16px'>"
+            f"{gi} &nbsp;|&nbsp; 🕐 {time_ago(lr2)}</p>"
+            f"</div>"
+            # KPI + 인기글
+            f"<div style='display:flex;border-top:1.5px solid #1E1E1E'>"
+            f"<div style='width:100px;flex-shrink:0;padding:12px 14px;"
+            f"background:#F0FAF3;border-right:1.5px solid #1E1E1E'>"
+            f"<div style='font-size:18px;font-weight:900;color:#1E1E1E'>{cnt_txt}</div>"
+            f"<div style='font-size:10px;color:#757575;font-weight:700;"
+            f"text-transform:uppercase;margin-top:4px'>게시글</div>"
+            f"</div>"
+            f"<div style='flex:1;padding:12px 14px;background:#FFFCF0;min-width:0'>"
+            f"{hot_section}"
+            f"</div>"
+            f"</div>"
+            # 버튼 행
+            f"<div style='display:flex;border-top:1.5px solid #1E1E1E'>"
+            f"{link_btn}{detail_btn}"
+            f"</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown(
-        f"<p class='sub' style='text-align:right;margin-top:6px'>"
+        f"<p class='sub' style='text-align:right;margin-top:2px'>"
         f"💡 {cfg.get('collection_note', '봇 실행 시 갱신 (1시간 주기)')}</p>",
         unsafe_allow_html=True,
     )
 
     # ── 푸터 ──────────────────────────────────────────────────────
     st.markdown(
-        f"<div style='text-align:right;margin-top:24px;padding-top:12px;"
+        f"<div style='text-align:right;margin-top:20px;padding-top:12px;"
         f"border-top:1px solid #E5E5E5'>"
         f"<span class='sub'>PM : {cfg['pm_name']} &nbsp;|&nbsp; "
         f"DC-Pickaxe {cfg['app_version']}</span>"

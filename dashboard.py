@@ -14,9 +14,15 @@ st.set_page_config(
 )
 inject_css()
 
-# ── 세션 상태 초기화 ─────────────────────────────────────────────
+# ── 세션 상태 초기화 + 쿼리 파라미터로 갤러리 직접 이동 ────────────
 if "page" not in st.session_state:
     st.session_state.page = "main"
+
+# ?gallery=GID 로 진입하면 해당 갤러리 상세 페이지로 이동
+if "gallery" in st.query_params:
+    st.session_state.page = st.query_params["gallery"]
+    st.query_params.clear()
+    st.rerun()
 
 # ── 데이터 로드 ──────────────────────────────────────────────────
 cfg = load_config()

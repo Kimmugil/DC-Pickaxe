@@ -58,6 +58,7 @@ _CSS = (
     "[data-testid='stMain'] button[data-testid='baseButton-secondary']:hover{"
     "background:#F4F5F7!important}"
 
+
     # ── Cards ──────────────────────────────────────────────────────
     ".lc{background:#FFFFFF;border:1.5px solid #1E1E1E;border-radius:20px;"
     "padding:22px 24px;margin-bottom:12px;word-break:keep-all}"
