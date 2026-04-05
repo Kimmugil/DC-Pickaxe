@@ -28,4 +28,5 @@ jobs:
       # 여기서 GitHub Secrets에 저장해둔 구글 출입증을 파이썬 코드로 안전하게 넘겨줘!
       env:
         GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        MASTER_SHEET_URL: ${{ secrets.MASTER_SHEET_URL }} # 이거 한 줄 추가!
       run: python scraper.py
