@@ -1,0 +1,33 @@
+name: DC-Pickaxe 갭 탐지 + 백필 봇
+
+on:
+  schedule:
+    # 매주 월요일 06:00 KST (일요일 21:00 UTC)
+    # 주말 이틀치 갭까지 포함해서 주 초에 한 번에 보충
+    - cron: '0 21 * * 0'
+  workflow_dispatch:  # 수동 실행 (Actions 탭에서 버튼으로 즉시 실행 가능)
+
+jobs:
+  gap-fill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 갤러리 수 × 백필 시간 여유
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Gap Filler
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          MASTER_SHEET_URL: ${{ secrets.MASTER_SHEET_URL }}
+        run: python gap_filler.py

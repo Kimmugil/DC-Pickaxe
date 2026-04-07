@@ -37,7 +37,6 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
     """
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST)
-    today = now.date()
     url_prefix = get_url_prefix(gallery_type)
 
     collected_count = 0
@@ -49,7 +48,6 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
     print(f"\n{'='*55}")
     print(f"  ⛏️  DC-Pickaxe 온보딩 스크래퍼 시작")
     print(f"{'='*55}")
-    print(f"  오늘({today}) 게시글 → 건너뜀 (스케줄러 담당)")
     print(f"  이미 수집된 게시글 {len(existing_ids):,}개 → 건너뜀")
     print(f"  {REST_EVERY_N_POSTS}건마다 {REST_DURATION_MIN}분 자동 휴식 (차단 방지)")
     print(f"  Ctrl+C 로 언제든 안전하게 중단 가능")
@@ -72,7 +70,6 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
                     break
 
                 new_on_page = 0
-                today_skipped = 0
                 already_skipped = 0  # 이미 수집된 글 수 (종료 판단에서 제외)
 
                 for row in rows:
@@ -106,12 +103,6 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
                     # 날짜 계산
                     date_str = row.select_one('.gall_date').text.strip()
                     date_val = parse_date_str(date_str, now)
-                    post_date = today if ':' in date_str else datetime.strptime(date_val, "%Y-%m-%d").date()
-
-                    # 오늘 글 건너뜀 (공지 제외)
-                    if not is_notice and post_date >= today:
-                        today_skipped += 1
-                        continue
 
                     title = title_elem.text.strip()
                     writer = row.select_one('.gall_writer')['data-nick']
@@ -141,11 +132,8 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
                         time.sleep(rest_sec)
                         print(f"  ▶️  휴식 종료. 수집 재개!\n")
 
-                # 연속 빈 페이지 카운트
-                # - 이미 수집된 글(already_skipped)이 있는 페이지는 "글이 있음"으로 간주 → 리셋
-                # - 오늘 글만 있는 페이지도 리셋
-                # - 페이지에 게시글이 아예 없을 때만 카운트 (갤러리 끝 도달)
-                any_post_on_page = new_on_page + today_skipped + already_skipped
+                # 연속 빈 페이지 카운트 (갤러리 끝 도달 판단)
+                any_post_on_page = new_on_page + already_skipped
                 if any_post_on_page == 0:
                     consecutive_empty_pages += 1
                     print(f"  [페이지 {page}] 게시글 없음 — 갤러리 끝 근처 "
@@ -157,8 +145,6 @@ def scrape_onboarding(gallery_id, existing_ids, gallery_type, sheet):
                     consecutive_empty_pages = 0
                     if already_skipped > 0 and new_on_page == 0:
                         print(f"  [페이지 {page}] 기수집 {already_skipped}개 건너뜀 → 계속 탐색...")
-                    elif today_skipped > 0 and new_on_page == 0:
-                        print(f"  [페이지 {page}] 오늘 글 {today_skipped}개 건너뜀 → 다음 페이지로...")
 
             except Exception as e:
                 print(f"\n  에러 발생: {e}")
