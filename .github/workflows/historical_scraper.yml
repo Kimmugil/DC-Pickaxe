@@ -1,0 +1,35 @@
+name: DC-Pickaxe 자동 역사 수집 봇
+
+on:
+  schedule:
+    # 매일 새벽 02:00 KST (전날 17:00 UTC) 실행
+    # 모든 갤러리 수집 완료 후 자동으로 조기 종료됨
+    - cron: '0 17 * * *'
+  workflow_dispatch:  # Actions 탭에서 수동 실행 가능
+
+jobs:
+  historical-scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100  # MAX_RUNTIME_MIN(90) + 여유 10분
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Historical Scraper
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          MASTER_SHEET_URL: ${{ secrets.MASTER_SHEET_URL }}
+        run: python historical_scraper.py
+        # 본문 생략 모드 (속도 우선): --skip-content 추가
+        # run: python historical_scraper.py --skip-content
