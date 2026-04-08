@@ -2,9 +2,8 @@ name: DC-Pickaxe 갭 탐지 + 백필 봇
 
 on:
   schedule:
-    # 매주 월요일 06:00 KST (일요일 21:00 UTC)
-    # 주말 이틀치 갭까지 포함해서 주 초에 한 번에 보충
-    - cron: '0 21 * * 0'
+    # 매일 03:00 KST (18:00 UTC) — 전날 생긴 갭을 다음날 새벽에 복구
+    - cron: '0 18 * * *'
   workflow_dispatch:  # 수동 실행 (Actions 탭에서 버튼으로 즉시 실행 가능)
 
 jobs:

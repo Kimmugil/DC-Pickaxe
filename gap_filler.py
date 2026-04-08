@@ -44,7 +44,7 @@ def get_daily_counts(sheet):
     """시트 E열(날짜)을 읽어 날짜별 게시글 수 반환 {date_str: count}"""
     date_col = sheet.col_values(5)  # E열: 날짜
     counts = defaultdict(int)
-    for v in date_col[1:]:  # 첫 행(헤더) 제외
+    for v in date_col:  # 헤더 없는 시트 (스크래퍼가 헤더 없이 저장)
         if not v:
             continue
         s = str(v)[:10]

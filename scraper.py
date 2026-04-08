@@ -16,6 +16,8 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
     page = 1
     max_pages = 1 if is_first_run else 50
     stop_crawling = False
+    consecutive_known = 0        # 연속으로 기존 글을 만난 횟수
+    STOP_AFTER_KNOWN  = 5        # 이 수만큼 연속 기존 글이면 수집 완료로 판단
 
     while page <= max_pages and not stop_crawling:
         list_url = f"https://gall.dcinside.com/{url_prefix}/lists/?id={gallery_id}&page={page}"
@@ -58,10 +60,14 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
                 if post_id in existing_ids:
                     if is_notice:
                         continue
-                    else:
-                        print(f"[{gallery_id}] {post_id}번 글 중복 발견. 크롤링 종료.")
+                    consecutive_known += 1
+                    if consecutive_known >= STOP_AFTER_KNOWN:
+                        print(f"[{gallery_id}] 기존 글 {STOP_AFTER_KNOWN}개 연속 — 수집 완료.")
                         stop_crawling = True
                         break
+                    continue
+
+                consecutive_known = 0  # 새 글 발견 시 리셋
 
                 title = title_elem.text.strip()
                 writer = row.select_one('.gall_writer')['data-nick']
