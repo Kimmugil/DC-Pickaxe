@@ -9,7 +9,7 @@ on:
 jobs:
   gap-fill:
     runs-on: ubuntu-latest
-    timeout-minutes: 120  # 갤러리 수 × 백필 시간 여유
+    timeout-minutes: 65   # MAX_RUNTIME_MIN(50) + 여유 15분
 
     steps:
       - name: Checkout repository

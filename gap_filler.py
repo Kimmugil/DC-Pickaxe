@@ -7,7 +7,7 @@ DC-Pickaxe 갭 탐지 + 자동 백필 봇
   3. 갭 발견 시: 해당 날짜 구간 역방향 페이지네이션으로 누락 게시글 보충
   4. 결과 로그 출력
 
-운영: GitHub Actions 주 1회 자동 실행 (매주 월요일 06:00 KST)
+운영: GitHub Actions 매일 03:00 KST 자동 실행
 수동: python gap_filler.py
 """
 import os
@@ -26,15 +26,18 @@ from utils import (
 load_dotenv()
 
 # ── 설정 ────────────────────────────────────────────────────────
-GAP_DAYS_BACK      = 60    # 최근 며칠까지 검사할지 (수집 시작일 이후 전체)
+MAX_RUNTIME_MIN    = 50    # 1회 실행 최대 시간 (분) — workflow timeout보다 여유있게
+GAP_DAYS_BACK      = 30    # 최근 며칠까지 갭 검사 (30일이면 월간 갭 전부 커버)
 BASELINE_DAYS      = 90    # 정상 평균 계산에 쓸 기간 (일)
 BASELINE_SKIP_DAYS = 3     # 최근 N일은 기준선에서 제외 (수집 진행 중일 수 있음)
 GAP_THRESHOLD      = 0.30  # 기준선 중앙값의 이 비율 미만이면 갭
 GAP_MIN_POSTS      = 2     # 절대 최소치: 이 건수 미만은 갭 (0~1건이면 무조건 갭)
-MAX_PAGES          = 200   # 백필 시 최대 탐색 페이지 수
+MAX_PAGES          = 150   # 백필 시 최대 탐색 페이지 수
 PAGE_DELAY         = (1.5, 2.5)   # 목록 페이지 간 딜레이 (초)
-CONTENT_DELAY      = (1.5, 3.0)   # 본문 수집 딜레이 (초)
 BATCH_SIZE         = 30           # 시트 배치 저장 단위
+# 백필은 본문 수집 생략 (메타데이터만 저장) → 10배 빠름, 타임아웃 방지
+# 본문이 필요하면 아래를 True로 바꾸되 timeout-minutes도 늘려야 함
+BACKFILL_WITH_CONTENT = False
 # ────────────────────────────────────────────────────────────────
 
 
@@ -96,10 +99,12 @@ def detect_gaps(daily_counts, gallery_name):
 
 # ── 백필 스크래핑 ─────────────────────────────────────────────────
 
-def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type):
+def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type, deadline):
     """
     gap_dates 기간의 누락 게시글을 역방향 페이지네이션으로 수집.
-    existing_ids로 중복 방지. earliest_gap보다 오래된 날짜를 만나면 종료.
+    - 본문 수집 생략(BACKFILL_WITH_CONTENT=False): 메타데이터만 저장해 속도 10배 향상
+    - deadline 초과 시 즉시 중단 (타임아웃 방지)
+    - existing_ids로 중복 방지. earliest_gap보다 오래된 날짜를 만나면 종료.
     """
     if not gap_dates:
         return []
@@ -113,9 +118,15 @@ def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type):
     all_new = []
     page = 1
 
-    print(f"  [{gallery_id}] 백필 시작 — 대상 날짜: {gap_dates}")
+    content_note = "본문 포함" if BACKFILL_WITH_CONTENT else "본문 생략(빠른 모드)"
+    print(f"  [{gallery_id}] 백필 시작 — 대상 날짜: {gap_dates} ({content_note})")
 
     while page <= MAX_PAGES:
+        # ── 런타임 데드라인 체크 ────────────────────────────────
+        if datetime.now(KST) >= deadline:
+            print(f"  [{gallery_id}] ⏰ 시간 제한 — 페이지 {page}에서 백필 중단 (다음 실행에 이어서)")
+            break
+
         url = f"https://gall.dcinside.com/{url_prefix}/lists/?id={gallery_id}&page={page}"
         try:
             r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=12)
@@ -179,10 +190,16 @@ def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type):
                     if writer_elem and writer_elem.has_attr('data-nick') else ""
                 )
                 comment_count, view_count, recommend_count = extract_engagement(row)
-                content = get_post_content(
-                    gallery_id, post_id, DEFAULT_HEADERS, gallery_type,
-                    delay_range=CONTENT_DELAY, timeout=10,
-                )
+
+                # 본문 수집 (설정에 따라 생략 가능)
+                if BACKFILL_WITH_CONTENT:
+                    content = get_post_content(
+                        gallery_id, post_id, DEFAULT_HEADERS, gallery_type,
+                        delay_range=(1.5, 3.0), timeout=10,
+                    )
+                else:
+                    content = ""
+
                 post_link = (
                     f"https://gall.dcinside.com/{url_prefix}/view/"
                     f"?id={gallery_id}&no={post_id}"
@@ -221,6 +238,10 @@ def save_to_sheet(sheet, new_posts):
 # ── 메인 ─────────────────────────────────────────────────────────
 
 def main():
+    KST = timezone(timedelta(hours=9))
+    start_time = datetime.now(KST)
+    deadline = start_time + timedelta(minutes=MAX_RUNTIME_MIN)
+
     client = get_gspread_client()
     master_url = os.environ.get('MASTER_SHEET_URL')
     if not master_url:
@@ -232,16 +253,22 @@ def main():
         for r in master_sheet.get_all_records()
     ]
 
-    KST = timezone(timedelta(hours=9))
     total_filled = 0
 
     print(f"\n{'='*60}")
     print(f"  DC-Pickaxe 갭 탐지 + 백필 봇")
-    print(f"  실행: {datetime.now(KST).strftime('%Y-%m-%d %H:%M')} KST")
+    print(f"  실행: {start_time.strftime('%Y-%m-%d %H:%M')} KST")
+    print(f"  종료 예정: {deadline.strftime('%H:%M')} KST (+{MAX_RUNTIME_MIN}분)")
     print(f"  검사 범위: 최근 {GAP_DAYS_BACK}일 | 임계값: 기준선의 {GAP_THRESHOLD*100:.0f}%")
+    print(f"  본문 수집: {'포함' if BACKFILL_WITH_CONTENT else '생략 (빠른 모드)'}")
     print(f"{'='*60}\n")
 
     for g in gallery_list:
+        # 전체 런타임 데드라인 체크
+        if datetime.now(KST) >= deadline:
+            print(f"⏰ 전체 시간 제한 도달 — 나머지 갤러리는 다음 실행에 처리됩니다.")
+            break
+
         gallery_id   = g.get('갤러리ID', '').strip()
         gallery_name = g.get('갤러리명', gallery_id)
         sheet_url    = g.get('저장시트 URL', '').strip()
@@ -261,7 +288,7 @@ def main():
                 continue
 
             existing_ids = set(v for v in sheet.col_values(1) if str(v).isdigit())
-            new_posts = backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type)
+            new_posts = backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type, deadline)
 
             if new_posts:
                 save_to_sheet(sheet, new_posts)
@@ -278,8 +305,9 @@ def main():
 
         time.sleep(random.uniform(3.0, 5.0))
 
+    elapsed = int((datetime.now(KST) - start_time).total_seconds() / 60)
     print(f"{'='*60}")
-    print(f"  완료! 총 {total_filled}건 보충")
+    print(f"  완료! 총 {total_filled}건 보충 | 소요: {elapsed}분")
     print(f"{'='*60}\n")
 
 
