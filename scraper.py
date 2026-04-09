@@ -14,7 +14,7 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
 
     all_new_posts = []
     page = 1
-    max_pages = 1 if is_first_run else 50
+    max_pages = 1 if is_first_run else 100
     stop_crawling = False
     consecutive_known = 0        # 연속으로 기존 글을 만난 횟수
     STOP_AFTER_KNOWN  = 5        # 이 수만큼 연속 기존 글이면 수집 완료로 판단
@@ -22,10 +22,15 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
     while page <= max_pages and not stop_crawling:
         list_url = f"https://gall.dcinside.com/{url_prefix}/lists/?id={gallery_id}&page={page}"
         try:
-            response = requests.get(list_url, headers=DEFAULT_HEADERS, verify=False, timeout=6)
+            response = requests.get(list_url, headers=DEFAULT_HEADERS, verify=False, timeout=10)
             if response.status_code != 200:
-                print(f"[{gallery_id}] IP 차단 의심: 상태 코드 {response.status_code}")
-                break
+                print(f"[{gallery_id}] 응답 {response.status_code} — 30초 후 재시도")
+                time.sleep(30)
+                response = requests.get(list_url, headers=DEFAULT_HEADERS, verify=False, timeout=10)
+                if response.status_code != 200:
+                    print(f"[{gallery_id}] 재시도 실패 ({response.status_code}) — 이 페이지 건너뜀")
+                    page += 1
+                    continue
 
             soup = BeautifulSoup(response.text, 'html.parser')
             rows = soup.select('.us-post')
@@ -57,9 +62,11 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
                 if not post_id.isdigit():
                     continue
 
+                # 공지글은 신규/기존 무관하게 항상 건너뜀 (크래시 방지 + 중복 방지)
+                if is_notice:
+                    continue
+
                 if post_id in existing_ids:
-                    if is_notice:
-                        continue
                     consecutive_known += 1
                     if consecutive_known >= STOP_AFTER_KNOWN:
                         print(f"[{gallery_id}] 기존 글 {STOP_AFTER_KNOWN}개 연속 — 수집 완료.")
@@ -70,7 +77,8 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
                 consecutive_known = 0  # 새 글 발견 시 리셋
 
                 title = title_elem.text.strip()
-                writer = row.select_one('.gall_writer')['data-nick']
+                writer_elem = row.select_one('.gall_writer')
+                writer = writer_elem['data-nick'] if writer_elem and writer_elem.has_attr('data-nick') else ""
                 date_val = parse_date_str(row.select_one('.gall_date').text.strip(), now)
                 comment_count, view_count, recommend_count = extract_engagement(row)
                 post_link = f"https://gall.dcinside.com/{url_prefix}/view/?id={gallery_id}&no={post_id}"

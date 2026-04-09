@@ -26,12 +26,12 @@ from utils import (
 load_dotenv()
 
 # ── 설정 ────────────────────────────────────────────────────────
-GAP_DAYS_BACK      = 14    # 최근 며칠까지 검사할지
-BASELINE_DAYS      = 60    # 정상 평균 계산에 쓸 기간 (일)
+GAP_DAYS_BACK      = 60    # 최근 며칠까지 검사할지 (수집 시작일 이후 전체)
+BASELINE_DAYS      = 90    # 정상 평균 계산에 쓸 기간 (일)
 BASELINE_SKIP_DAYS = 3     # 최근 N일은 기준선에서 제외 (수집 진행 중일 수 있음)
-GAP_THRESHOLD      = 0.25  # 기준선 중앙값의 이 비율 미만이면 갭
-GAP_MIN_POSTS      = 3     # 절대 최소치: 이 건수 미만은 갭 (활성 갤러리 기준)
-MAX_PAGES          = 150   # 백필 시 최대 탐색 페이지 수
+GAP_THRESHOLD      = 0.30  # 기준선 중앙값의 이 비율 미만이면 갭
+GAP_MIN_POSTS      = 2     # 절대 최소치: 이 건수 미만은 갭 (0~1건이면 무조건 갭)
+MAX_PAGES          = 200   # 백필 시 최대 탐색 페이지 수
 PAGE_DELAY         = (1.5, 2.5)   # 목록 페이지 간 딜레이 (초)
 CONTENT_DELAY      = (1.5, 3.0)   # 본문 수집 딜레이 (초)
 BATCH_SIZE         = 30           # 시트 배치 저장 단위
@@ -56,27 +56,31 @@ def get_daily_counts(sheet):
 def detect_gaps(daily_counts, gallery_name):
     """
     최근 GAP_DAYS_BACK일(오늘 제외) 중 게시글이 비정상적으로 적은 날 반환.
-    기준: 최근 BASELINE_DAYS일 중 안정된 구간의 중앙값 × GAP_THRESHOLD
+    기준: 데이터가 있는 날 중 상위 50%의 중앙값 × GAP_THRESHOLD
+    (초기 수집이 드문 날이 많아도 기준선이 왜곡되지 않도록 상위 절반만 사용)
     """
     KST = timezone(timedelta(hours=9))
     today = datetime.now(KST).date()
 
-    # 기준선: 최근 안정 구간의 중앙값
+    # 기준선: 최근 안정 구간에서 데이터가 있는 날만 수집 → 상위 절반의 중앙값
     baseline_vals = []
     for i in range(BASELINE_SKIP_DAYS + 1, BASELINE_DAYS + 1):
         d = str(today - timedelta(days=i))
-        if d in daily_counts:
-            baseline_vals.append(daily_counts[d])
+        cnt = daily_counts.get(d, 0)
+        if cnt > 0:  # 실제 수집된 날만 기준선에 포함
+            baseline_vals.append(cnt)
 
     if len(baseline_vals) < 3:
         print(f"  [{gallery_name}] 기준선 데이터 부족 — 갭 검사 생략")
         return []
 
     baseline_vals.sort()
-    median = baseline_vals[len(baseline_vals) // 2]
+    # 상위 절반만 사용해 이상치(수집 실패일)가 기준선을 낮추는 것 방지
+    upper_half = baseline_vals[len(baseline_vals) // 2:]
+    median = upper_half[len(upper_half) // 2]
     threshold = max(median * GAP_THRESHOLD, GAP_MIN_POSTS)
 
-    print(f"  [{gallery_name}] 기준 중앙값 {median}건/일 → 갭 임계값 {threshold:.0f}건")
+    print(f"  [{gallery_name}] 기준 상위중앙값 {median}건/일 → 갭 임계값 {threshold:.0f}건")
 
     gaps = []
     for i in range(1, GAP_DAYS_BACK + 1):  # 오늘(i=0) 제외
@@ -114,13 +118,13 @@ def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type):
     while page <= MAX_PAGES:
         url = f"https://gall.dcinside.com/{url_prefix}/lists/?id={gallery_id}&page={page}"
         try:
-            r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=10)
+            r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=12)
             if r.status_code != 200:
                 print(f"  [{gallery_id}] 페이지 {page} 응답 {r.status_code} — 30초 대기 후 재시도")
                 time.sleep(30)
-                # 재시도 1회
-                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=10)
+                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=12)
                 if r.status_code != 200:
+                    print(f"  [{gallery_id}] 페이지 {page} 재시도 실패 — 건너뜀")
                     page += 1
                     continue
 

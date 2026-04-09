@@ -192,9 +192,14 @@ def scrape_gallery_historical(
         try:
             r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
             if r.status_code != 200:
-                print(f"  [{gallery_id}] 페이지 {page} 응답 {r.status_code} — 30초 대기")
+                print(f"  [{gallery_id}] 페이지 {page} 응답 {r.status_code} — 30초 대기 후 재시도")
                 time.sleep(30)
-                continue
+                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
+                if r.status_code != 200:
+                    print(f"  [{gallery_id}] 페이지 {page} 재시도 실패 — 건너뜀")
+                    page += 1
+                    time.sleep(random.uniform(*PAGE_DELAY))
+                    continue
 
             soup = BeautifulSoup(r.text, "html.parser")
             rows = soup.select(".us-post")
@@ -337,9 +342,14 @@ def main():
             continue
 
         all_done = False
-        start_page = ckpt.get("last_page", 0) + 1
+        # 페이지 드리프트 보정: 새 글 추가로 인해 저장된 페이지 번호가 밀릴 수 있어
+        # 10페이지 앞에서 다시 시작 (existing_ids로 중복 방지)
+        OVERLAP_PAGES = 10
+        saved_page = ckpt.get("last_page", 0)
+        start_page = max(saved_page - OVERLAP_PAGES + 1, 1) if saved_page > 0 else 1
 
-        print(f"\n── [{gallery_name}] 수집 시작 (페이지 {start_page}~)")
+        overlap_note = f" (드리프트 보정: {saved_page}→{start_page})" if saved_page > 0 else ""
+        print(f"\n── [{gallery_name}] 수집 시작 (페이지 {start_page}~){overlap_note}")
 
         # 시간 제한 사전 체크
         if datetime.now(KST) >= deadline:
