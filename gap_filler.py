@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from utils import (
     get_gspread_client, get_url_prefix,
-    parse_date_str, extract_engagement, DEFAULT_HEADERS,
+    parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked,
 )
 
 load_dotenv()
@@ -135,6 +135,17 @@ def scan_gap_metadata(gallery_id, gap_dates, existing_ids, gallery_type, deadlin
                     continue
 
             soup = BeautifulSoup(r.text, 'html.parser')
+
+            # 소프트 차단 감지
+            if is_soft_blocked(soup):
+                print(f"  [{gallery_id}] ⚠️  소프트 차단 감지 (페이지 {page}) — 90초 대기 후 재시도")
+                time.sleep(90)
+                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
+                soup = BeautifulSoup(r.text, 'html.parser')
+                if is_soft_blocked(soup):
+                    print(f"  [{gallery_id}] 재시도 후에도 차단 — 백필 중단")
+                    break
+
             rows = soup.select('.us-post')
             if not rows:
                 print(f"  [{gallery_id}] 페이지 {page} — 게시글 없음, 갤러리 끝 도달")

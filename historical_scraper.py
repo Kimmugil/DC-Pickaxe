@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from utils import (
     get_gspread_client, get_url_prefix, get_post_content,
-    parse_date_str, extract_engagement, DEFAULT_HEADERS,
+    parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked,
 )
 
 load_dotenv()
@@ -32,6 +32,7 @@ CONTENT_DELAY       = 0.5   # 본문 요청 간 딜레이 (초)
 PAGE_DELAY          = (1.5, 2.5)   # 목록 페이지 간 딜레이 (초)
 BATCH_SIZE          = 50    # 이 건수마다 시트 저장 + 체크포인트 갱신
 MAX_EMPTY_PAGES     = 5     # 연속 빈 페이지 이 수 이상 → 해당 갤러리 완료
+SOFTBLOCK_WAIT      = 90   # 소프트 차단 감지 시 대기 시간 (초)
 REQUEST_TIMEOUT     = 12
 CHECKPOINT_TAB      = "checkpoints"  # 마스터시트 체크포인트 탭 이름
 # ────────────────────────────────────────────────────────────────
@@ -202,6 +203,28 @@ def scrape_gallery_historical(
                     continue
 
             soup = BeautifulSoup(r.text, "html.parser")
+
+            # 소프트 차단 감지: 골격 없는 빈 페이지 → 차단이지 갤러리 끝이 아님
+            if is_soft_blocked(soup):
+                print(f"  [{gallery_id}] ⚠️  소프트 차단 감지 (페이지 {page}) — {SOFTBLOCK_WAIT}초 대기 후 재시도")
+                time.sleep(SOFTBLOCK_WAIT)
+                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
+                soup = BeautifulSoup(r.text, "html.parser")
+                if is_soft_blocked(soup):
+                    print(f"  [{gallery_id}] 재시도 후에도 차단 — 이번 실행 중단 (체크포인트 저장)")
+                    if pending:
+                        if not SKIP_CONTENT:
+                            contents = asyncio.run(
+                                fetch_contents_async(gallery_id, url_prefix, [p["id"] for p in pending])
+                            )
+                            for p in pending:
+                                p["content"] = contents.get(p["id"], "")
+                        flush_batch(sheet, pending, gallery_id, url_prefix)
+                        total_saved += len(pending)
+                        pending = []
+                    save_checkpoint(ckpt_ws, checkpoints, gallery_id, page, done=False, total_saved=total_saved)
+                    return total_saved, False
+
             rows = soup.select(".us-post")
 
             if not rows:

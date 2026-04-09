@@ -58,6 +58,27 @@ def get_post_content(gallery_id, post_id, headers, gallery_type, delay_range=(1.
     except Exception:
         return ""
 
+def is_soft_blocked(soup):
+    """
+    DC Inside 소프트 차단 여부 감지.
+    차단 시 HTTP 200이지만 갤러리 리스트 골격(tbody.listwrap)이 없음.
+    반환: True = 차단됨, False = 정상
+    """
+    # 정상 갤러리 목록 페이지는 반드시 이 요소를 포함
+    has_list_wrapper = soup.select_one('tbody.listwrap2, table.gall_list')
+    if has_list_wrapper is not None:
+        return False  # 골격 있음 → 정상 (단지 글이 없을 수도 있음)
+    # 골격 자체가 없으면 → 차단 또는 잘못된 페이지
+    # 추가 확인: DC Inside 오류/차단 페이지 시그니처
+    body_text = soup.get_text()
+    block_signals = ['잠시 후 다시', '비정상적인 접근', 'blocked', 'captcha', '자동입력 방지']
+    for sig in block_signals:
+        if sig.lower() in body_text.lower():
+            return True
+    # 골격도 없고 시그니처도 없으면 — 안전하게 차단으로 처리
+    return True
+
+
 def parse_date_str(date_str, now):
     """DC Inside 날짜 문자열을 'YYYY-MM-DD HH:MM' 또는 'YYYY-MM-DD' 형식으로 변환합니다."""
     if ':' in date_str:

@@ -4,7 +4,7 @@ import random
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
-from utils import get_gspread_client, get_url_prefix, get_post_content, parse_date_str, extract_engagement, DEFAULT_HEADERS
+from utils import get_gspread_client, get_url_prefix, get_post_content, parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked
 
 
 def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
@@ -33,6 +33,17 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
                     continue
 
             soup = BeautifulSoup(response.text, 'html.parser')
+
+            # 소프트 차단 감지: 골격 없이 빈 페이지 반환 시 60초 대기 후 재시도
+            if is_soft_blocked(soup):
+                print(f"[{gallery_id}] ⚠️  소프트 차단 감지 (페이지 {page}) — 60초 대기 후 재시도")
+                time.sleep(60)
+                response = requests.get(list_url, headers=DEFAULT_HEADERS, verify=False, timeout=10)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                if is_soft_blocked(soup):
+                    print(f"[{gallery_id}] 재시도 후에도 차단 — 이번 수집 중단")
+                    break
+
             rows = soup.select('.us-post')
             if not rows:
                 break
