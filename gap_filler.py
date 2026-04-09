@@ -4,40 +4,42 @@ DC-Pickaxe 갭 탐지 + 자동 백필 봇
 흐름:
   1. 마스터 시트에서 갤러리 목록 조회
   2. 각 갤러리 시트: 날짜별 게시글 수 집계 → 갭 날짜 탐지
-  3. 갭 발견 시: 해당 날짜 구간 역방향 페이지네이션으로 누락 게시글 보충
-  4. 결과 로그 출력
+  3. 갭 발견 시: Phase 1 목록 스캔(메타데이터) → Phase 2 async 병렬 본문 수집
+  4. 시트 저장
 
 운영: GitHub Actions 매일 03:00 KST 자동 실행
 수동: python gap_filler.py
 """
 import os
+import asyncio
 import time
 import random
 import requests
+import aiohttp
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from utils import (
-    get_gspread_client, get_url_prefix, get_post_content,
+    get_gspread_client, get_url_prefix,
     parse_date_str, extract_engagement, DEFAULT_HEADERS,
 )
 
 load_dotenv()
 
 # ── 설정 ────────────────────────────────────────────────────────
-MAX_RUNTIME_MIN    = 50    # 1회 실행 최대 시간 (분) — workflow timeout보다 여유있게
-GAP_DAYS_BACK      = 30    # 최근 며칠까지 갭 검사 (30일이면 월간 갭 전부 커버)
-BASELINE_DAYS      = 90    # 정상 평균 계산에 쓸 기간 (일)
-BASELINE_SKIP_DAYS = 3     # 최근 N일은 기준선에서 제외 (수집 진행 중일 수 있음)
-GAP_THRESHOLD      = 0.30  # 기준선 중앙값의 이 비율 미만이면 갭
-GAP_MIN_POSTS      = 2     # 절대 최소치: 이 건수 미만은 갭 (0~1건이면 무조건 갭)
-MAX_PAGES          = 150   # 백필 시 최대 탐색 페이지 수
-PAGE_DELAY         = (1.5, 2.5)   # 목록 페이지 간 딜레이 (초)
-BATCH_SIZE         = 30           # 시트 배치 저장 단위
-# 백필은 본문 수집 생략 (메타데이터만 저장) → 10배 빠름, 타임아웃 방지
-# 본문이 필요하면 아래를 True로 바꾸되 timeout-minutes도 늘려야 함
-BACKFILL_WITH_CONTENT = False
+MAX_RUNTIME_MIN     = 50    # 1회 실행 최대 시간 (분) — workflow timeout보다 여유있게
+GAP_DAYS_BACK       = 30    # 최근 며칠까지 갭 검사 (30일 = 한 달치 전부 커버)
+BASELINE_DAYS       = 90    # 정상 평균 계산에 쓸 기간 (일)
+BASELINE_SKIP_DAYS  = 3     # 최근 N일은 기준선에서 제외 (수집 진행 중일 수 있음)
+GAP_THRESHOLD       = 0.30  # 기준선 중앙값의 이 비율 미만이면 갭
+GAP_MIN_POSTS       = 2     # 절대 최소치: 이 건수 미만이면 무조건 갭
+MAX_PAGES           = 150   # 백필 시 최대 탐색 페이지 수
+PAGE_DELAY          = (1.5, 2.5)   # 목록 페이지 간 딜레이 (초)
+CONTENT_CONCURRENCY = 5     # async 본문 동시 수집 수
+CONTENT_DELAY       = 0.5   # 본문 요청 간 딜레이 (초)
+REQUEST_TIMEOUT     = 12    # 요청 타임아웃 (초)
+BATCH_SIZE          = 30    # 시트 배치 저장 단위
 # ────────────────────────────────────────────────────────────────
 
 
@@ -97,43 +99,36 @@ def detect_gaps(daily_counts, gallery_name):
     return sorted(gaps)  # 오래된 날짜 → 최신 날짜 순
 
 
-# ── 백필 스크래핑 ─────────────────────────────────────────────────
+# ── Phase 1: 목록 스캔 (메타데이터만, 빠름) ──────────────────────
 
-def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type, deadline):
+def scan_gap_metadata(gallery_id, gap_dates, existing_ids, gallery_type, deadline):
     """
-    gap_dates 기간의 누락 게시글을 역방향 페이지네이션으로 수집.
-    - 본문 수집 생략(BACKFILL_WITH_CONTENT=False): 메타데이터만 저장해 속도 10배 향상
-    - deadline 초과 시 즉시 중단 (타임아웃 방지)
-    - existing_ids로 중복 방지. earliest_gap보다 오래된 날짜를 만나면 종료.
+    gap_dates 구간의 누락 게시글 메타데이터를 목록 페이지에서 수집.
+    본문은 수집하지 않음 (Phase 2에서 async로 일괄 처리).
     """
-    if not gap_dates:
-        return []
-
     url_prefix = get_url_prefix(gallery_type)
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST)
 
     earliest_gap = gap_dates[0]
     gap_date_set = set(gap_dates)
-    all_new = []
+    meta_list = []   # {"id", "title", "writer", "date", "cc", "vc", "rc"}
     page = 1
 
-    content_note = "본문 포함" if BACKFILL_WITH_CONTENT else "본문 생략(빠른 모드)"
-    print(f"  [{gallery_id}] 백필 시작 — 대상 날짜: {gap_dates} ({content_note})")
+    print(f"  [{gallery_id}] Phase 1: 목록 스캔 — 갭 날짜 {gap_dates}")
 
     while page <= MAX_PAGES:
-        # ── 런타임 데드라인 체크 ────────────────────────────────
         if datetime.now(KST) >= deadline:
-            print(f"  [{gallery_id}] ⏰ 시간 제한 — 페이지 {page}에서 백필 중단 (다음 실행에 이어서)")
+            print(f"  [{gallery_id}] ⏰ 시간 제한 — 목록 스캔 중단 (페이지 {page})")
             break
 
         url = f"https://gall.dcinside.com/{url_prefix}/lists/?id={gallery_id}&page={page}"
         try:
-            r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=12)
+            r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
             if r.status_code != 200:
                 print(f"  [{gallery_id}] 페이지 {page} 응답 {r.status_code} — 30초 대기 후 재시도")
                 time.sleep(30)
-                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=12)
+                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
                 if r.status_code != 200:
                     print(f"  [{gallery_id}] 페이지 {page} 재시도 실패 — 건너뜀")
                     page += 1
@@ -165,57 +160,39 @@ def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type, deadline):
                 if 'no=' not in href:
                     continue
                 post_id = href.split('no=')[1].split('&')[0]
-                if not post_id.isdigit():
-                    continue
-                if post_id in existing_ids:
+                if not post_id.isdigit() or post_id in existing_ids:
                     continue
 
                 date_str_raw = row.select_one('.gall_date').text.strip()
                 date_val = parse_date_str(date_str_raw, now)
                 post_date = date_val[:10]
 
-                # 갭보다 오래된 날짜에 도달 → 더 이상 찾을 필요 없음
                 if post_date < earliest_gap:
                     passed_earliest = True
                     break
 
-                # 갭 날짜 범위에 해당하는 글만 수집
                 if post_date not in gap_date_set:
                     continue
 
-                title = title_elem.text.strip()
                 writer_elem = row.select_one('.gall_writer')
                 writer = (
                     writer_elem['data-nick']
                     if writer_elem and writer_elem.has_attr('data-nick') else ""
                 )
-                comment_count, view_count, recommend_count = extract_engagement(row)
-
-                # 본문 수집 (설정에 따라 생략 가능)
-                if BACKFILL_WITH_CONTENT:
-                    content = get_post_content(
-                        gallery_id, post_id, DEFAULT_HEADERS, gallery_type,
-                        delay_range=(1.5, 3.0), timeout=10,
-                    )
-                else:
-                    content = ""
-
-                post_link = (
-                    f"https://gall.dcinside.com/{url_prefix}/view/"
-                    f"?id={gallery_id}&no={post_id}"
-                )
-                all_new.append([
-                    post_id, title, content, writer, date_val,
-                    post_link, comment_count, view_count, recommend_count,
-                ])
+                cc, vc, rc = extract_engagement(row)
+                meta_list.append({
+                    "id": post_id, "title": title_elem.text.strip(),
+                    "writer": writer, "date": date_val,
+                    "cc": cc, "vc": vc, "rc": rc,
+                })
                 existing_ids.add(post_id)
                 page_new += 1
 
             if page_new:
-                print(f"  [{gallery_id}] 페이지 {page}: {page_new}건 수집 (누적 {len(all_new)}건)")
+                print(f"  [{gallery_id}] 페이지 {page}: {page_new}건 메타 수집 (누적 {len(meta_list)}건)")
 
             if passed_earliest:
-                print(f"  [{gallery_id}] 갭 범위 이전 날짜 도달 — 백필 완료")
+                print(f"  [{gallery_id}] 갭 이전 날짜 도달 — 목록 스캔 완료")
                 break
 
         except Exception as e:
@@ -224,14 +201,57 @@ def backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type, deadline):
         page += 1
         time.sleep(random.uniform(*PAGE_DELAY))
 
-    return all_new
+    return meta_list
+
+
+# ── Phase 2: async 병렬 본문 수집 ────────────────────────────────
+
+async def _fetch_content_one(session, sem, gallery_id, post_id, url_prefix):
+    url = (f"https://gall.dcinside.com/{url_prefix}/view/"
+           f"?id={gallery_id}&no={post_id}")
+    async with sem:
+        try:
+            await asyncio.sleep(CONTENT_DELAY + random.uniform(0, 0.3))
+            async with session.get(
+                url, headers=DEFAULT_HEADERS, ssl=False,
+                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
+            ) as r:
+                if r.status == 200:
+                    soup = BeautifulSoup(await r.text(), "html.parser")
+                    div = soup.select_one(".write_div")
+                    return post_id, div.get_text(separator=" ", strip=True) if div else ""
+                return post_id, ""
+        except Exception:
+            return post_id, ""
+
+
+async def fetch_contents_async(gallery_id, url_prefix, post_ids):
+    """post_ids 리스트의 본문을 병렬 수집 → {post_id: content}"""
+    sem = asyncio.Semaphore(CONTENT_CONCURRENCY)
+    connector = aiohttp.TCPConnector(limit=CONTENT_CONCURRENCY, ssl=False)
+    contents = {}
+    async with aiohttp.ClientSession(connector=connector) as session:
+        tasks = [
+            _fetch_content_one(session, sem, gallery_id, pid, url_prefix)
+            for pid in post_ids
+        ]
+        done = 0
+        total = len(tasks)
+        for coro in asyncio.as_completed(tasks):
+            pid, content = await coro
+            contents[pid] = content
+            done += 1
+            if done % 50 == 0 or done == total:
+                print(f"  [{gallery_id}] 본문 수집 중: {done}/{total}건", end="\r")
+    print()  # 줄바꿈
+    return contents
 
 
 # ── 시트 저장 ────────────────────────────────────────────────────
 
-def save_to_sheet(sheet, new_posts):
-    for i in range(0, len(new_posts), BATCH_SIZE):
-        sheet.append_rows(new_posts[i:i + BATCH_SIZE], value_input_option='RAW')
+def save_to_sheet(sheet, rows):
+    for i in range(0, len(rows), BATCH_SIZE):
+        sheet.append_rows(rows[i:i + BATCH_SIZE], value_input_option='RAW')
         time.sleep(1.0)
 
 
@@ -260,13 +280,12 @@ def main():
     print(f"  실행: {start_time.strftime('%Y-%m-%d %H:%M')} KST")
     print(f"  종료 예정: {deadline.strftime('%H:%M')} KST (+{MAX_RUNTIME_MIN}분)")
     print(f"  검사 범위: 최근 {GAP_DAYS_BACK}일 | 임계값: 기준선의 {GAP_THRESHOLD*100:.0f}%")
-    print(f"  본문 수집: {'포함' if BACKFILL_WITH_CONTENT else '생략 (빠른 모드)'}")
+    print(f"  본문 수집: async {CONTENT_CONCURRENCY}개 동시 (동기 대비 ~{CONTENT_CONCURRENCY*4}배 빠름)")
     print(f"{'='*60}\n")
 
     for g in gallery_list:
-        # 전체 런타임 데드라인 체크
         if datetime.now(KST) >= deadline:
-            print(f"⏰ 전체 시간 제한 도달 — 나머지 갤러리는 다음 실행에 처리됩니다.")
+            print("⏰ 전체 시간 제한 도달 — 나머지 갤러리는 다음 실행에 처리됩니다.")
             break
 
         gallery_id   = g.get('갤러리ID', '').strip()
@@ -288,17 +307,40 @@ def main():
                 continue
 
             existing_ids = set(v for v in sheet.col_values(1) if str(v).isdigit())
-            new_posts = backfill_gaps(gallery_id, gap_dates, existing_ids, gallery_type, deadline)
 
-            if new_posts:
-                save_to_sheet(sheet, new_posts)
-                total_filled += len(new_posts)
-                print(f"  [{gallery_name}] ✅ {len(new_posts)}건 보충 완료\n")
-            else:
-                print(
-                    f"  [{gallery_name}] 갭 탐지됐으나 새 글 없음"
-                    f" (이미 수집됐거나 실제 비활성 기간)\n"
+            # Phase 1: 목록 스캔 (메타데이터만, 빠름)
+            meta_list = scan_gap_metadata(
+                gallery_id, gap_dates, existing_ids, gallery_type, deadline
+            )
+
+            if not meta_list:
+                print(f"  [{gallery_name}] 갭 탐지됐으나 새 글 없음 (이미 수집됐거나 실제 비활성)\n")
+                continue
+
+            # Phase 2: async 병렬 본문 수집
+            url_prefix = get_url_prefix(gallery_type)
+            print(f"  [{gallery_name}] Phase 2: 본문 async 수집 ({len(meta_list)}건)...")
+            post_ids = [p["id"] for p in meta_list]
+            contents = asyncio.run(
+                fetch_contents_async(gallery_id, url_prefix, post_ids)
+            )
+
+            # Phase 3: 시트 저장용 rows 조합
+            rows = []
+            for p in meta_list:
+                post_link = (
+                    f"https://gall.dcinside.com/{url_prefix}/view/"
+                    f"?id={gallery_id}&no={p['id']}"
                 )
+                rows.append([
+                    p["id"], p["title"], contents.get(p["id"], ""),
+                    p["writer"], p["date"], post_link,
+                    p["cc"], p["vc"], p["rc"],
+                ])
+
+            save_to_sheet(sheet, rows)
+            total_filled += len(rows)
+            print(f"  [{gallery_name}] ✅ {len(rows)}건 보충 완료\n")
 
         except Exception as e:
             print(f"  [{gallery_name}] 에러: {e}\n")
