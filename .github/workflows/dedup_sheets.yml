@@ -1,15 +1,12 @@
-name: DC-Pickaxe 갭 탐지 + 백필 봇
+name: DC-Pickaxe 시트 중복 제거
 
 on:
-  schedule:
-    # 매일 04:00 KST (19:00 UTC) — hourly scraper(18:00)와 충돌 방지를 위해 1시간 뒤
-    - cron: '0 19 * * *'
-  workflow_dispatch:  # 수동 실행 (Actions 탭에서 버튼으로 즉시 실행 가능)
+  workflow_dispatch:  # 수동 실행 전용
 
 jobs:
-  gap-fill:
+  dedup:
     runs-on: ubuntu-latest
-    timeout-minutes: 65   # MAX_RUNTIME_MIN(50) + 여유 15분
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -25,8 +22,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Gap Filler
+      - name: Run Dedup
         env:
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
           MASTER_SHEET_URL: ${{ secrets.MASTER_SHEET_URL }}
-        run: python gap_filler.py
+        run: python dedup_sheets.py

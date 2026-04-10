@@ -2,9 +2,9 @@ name: DC-Pickaxe 자동 역사 수집 봇
 
 on:
   schedule:
-    # 매일 새벽 02:00 KST (전날 17:00 UTC) 실행
+    # 매일 새벽 02:30 KST (전날 17:30 UTC) 실행 — 정각 hourly scraper(17:00)와 충돌 방지
     # 모든 갤러리 수집 완료 후 자동으로 조기 종료됨
-    - cron: '0 17 * * *'
+    - cron: '30 17 * * *'
   workflow_dispatch:  # Actions 탭에서 수동 실행 가능
 
 jobs:

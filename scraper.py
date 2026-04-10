@@ -86,6 +86,7 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
                     continue
 
                 consecutive_known = 0  # 새 글 발견 시 리셋
+                existing_ids.add(post_id)  # 같은 run 내 다음 페이지에서 재수집 방지
 
                 title = title_elem.text.strip()
                 writer_elem = row.select_one('.gall_writer')
