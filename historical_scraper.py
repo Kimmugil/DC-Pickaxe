@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from utils import (
     get_gspread_client, get_url_prefix, get_post_content,
-    parse_date_str, extract_engagement, DEFAULT_HEADERS,
+    parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked,
 )
 
 load_dotenv()
@@ -32,6 +32,7 @@ CONTENT_DELAY       = 0.5   # 본문 요청 간 딜레이 (초)
 PAGE_DELAY          = (1.5, 2.5)   # 목록 페이지 간 딜레이 (초)
 BATCH_SIZE          = 50    # 이 건수마다 시트 저장 + 체크포인트 갱신
 MAX_EMPTY_PAGES     = 5     # 연속 빈 페이지 이 수 이상 → 해당 갤러리 완료
+SOFTBLOCK_WAIT      = 90    # 소프트 차단 시 대기 시간 (초)
 REQUEST_TIMEOUT     = 12
 CHECKPOINT_TAB      = "checkpoints"  # 마스터시트 체크포인트 탭 이름
 # ────────────────────────────────────────────────────────────────
@@ -192,11 +193,38 @@ def scrape_gallery_historical(
         try:
             r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
             if r.status_code != 200:
-                print(f"  [{gallery_id}] 페이지 {page} 응답 {r.status_code} — 30초 대기")
+                print(f"  [{gallery_id}] 페이지 {page} 응답 {r.status_code} — 30초 대기 후 재시도")
                 time.sleep(30)
-                continue
+                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
+                if r.status_code != 200:
+                    print(f"  [{gallery_id}] 페이지 {page} 재시도 실패 — 건너뜀")
+                    page += 1
+                    time.sleep(random.uniform(*PAGE_DELAY))
+                    continue
 
             soup = BeautifulSoup(r.text, "html.parser")
+
+            # 소프트 차단 감지: 골격 없는 빈 페이지 → 90초 대기 후 재시도
+            if is_soft_blocked(soup):
+                print(f"  [{gallery_id}] ⚠️  소프트 차단 감지 (페이지 {page}) — {SOFTBLOCK_WAIT}초 대기")
+                time.sleep(SOFTBLOCK_WAIT)
+                r = requests.get(url, headers=DEFAULT_HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
+                soup = BeautifulSoup(r.text, "html.parser")
+                if is_soft_blocked(soup):
+                    print(f"  [{gallery_id}] 재시도 후에도 차단 — 체크포인트 저장 후 중단")
+                    if pending:
+                        if not SKIP_CONTENT:
+                            contents = asyncio.run(
+                                fetch_contents_async(gallery_id, url_prefix, [p["id"] for p in pending])
+                            )
+                            for p in pending:
+                                p["content"] = contents.get(p["id"], "")
+                        flush_batch(sheet, pending, gallery_id, url_prefix)
+                        total_saved += len(pending)
+                        pending = []
+                    save_checkpoint(ckpt_ws, checkpoints, gallery_id, page, done=False, total_saved=total_saved)
+                    return total_saved, False
+
             rows = soup.select(".us-post")
 
             if not rows:
@@ -337,9 +365,14 @@ def main():
             continue
 
         all_done = False
-        start_page = ckpt.get("last_page", 0) + 1
+        # 페이지 드리프트 보정: 새 글 추가로 인해 저장된 페이지 번호가 밀릴 수 있어
+        # 10페이지 앞에서 다시 시작 (existing_ids로 중복 방지)
+        OVERLAP_PAGES = 10
+        saved_page = ckpt.get("last_page", 0)
+        start_page = max(saved_page - OVERLAP_PAGES + 1, 1) if saved_page > 0 else 1
 
-        print(f"\n── [{gallery_name}] 수집 시작 (페이지 {start_page}~)")
+        overlap_note = f" (드리프트 보정: {saved_page}→{start_page})" if saved_page > 0 else ""
+        print(f"\n── [{gallery_name}] 수집 시작 (페이지 {start_page}~){overlap_note}")
 
         # 시간 제한 사전 체크
         if datetime.now(KST) >= deadline:

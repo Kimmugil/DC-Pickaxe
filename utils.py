@@ -11,9 +11,17 @@ from google.oauth2.service_account import Credentials
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Connection": "keep-alive"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Referer": "https://www.dcinside.com/",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
 }
 
 def get_gspread_client():
@@ -75,3 +83,21 @@ def extract_engagement(row):
     recommend_count = recommend_elem.text.strip() if recommend_elem else "0"
 
     return comment_count, view_count, recommend_count
+
+
+def is_soft_blocked(soup):
+    """DC Inside 소프트 차단 감지: 빈 HTML 골격만 반환할 때 True.
+
+    DC Inside는 차단 시 HTTP 200 + 텍스트 없는 빈 페이지를 반환함.
+    실제 갤러리 끝(정상 빈 페이지)과 구분하기 위해 목록 골격 유무로 판단.
+    """
+    # 목록 테이블 골격이 있으면 정상 (빈 갤러리도 뼈대는 있음)
+    if soup.select_one('tbody.listwrap2, table.gall_list') is not None:
+        return False
+    # 골격 없고 차단 키워드가 있으면 명시적 차단
+    body_text = soup.get_text().lower()
+    for sig in ['잠시 후 다시', '비정상적인 접근', 'blocked', 'captcha', '자동입력 방지']:
+        if sig.lower() in body_text:
+            return True
+    # 골격도 없고 키워드도 없으면 소프트 차단 (빈 응답)
+    return True
