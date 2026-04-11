@@ -70,24 +70,39 @@ def svg_bar_daily(dates, values, width=580, height=160, bar_color="#FFD166"):
         return ""
     n = len(values)
     vmax = _robust_vmax(values)
-    pl, pr, pt, pb = 8, 8, 20, 28
+    pl, pr, pt, pb = 8, 8, 32, 28  # pt=32: 바 위 수치 라벨 공간 확보
     cw = (width - pl - pr) / n
     bw = max(cw * 0.65, 2)
     ch = height - pt - pb
     out = ""
     for i, (d, v) in enumerate(zip(dates, values)):
-        x = pl + i * cw + (cw - bw) / 2
-        bh = min(v / vmax, 1.0) * ch  # vmax 초과 시 꽉 찬 바로 표시
-        y = pt + ch - bh
-        out += (
-            f"<rect x='{x:.1f}' y='{y:.1f}' width='{bw:.1f}' height='{bh:.1f}'"
-            f" rx='3' fill='{bar_color}' stroke='#1E1E1E' stroke-width='1.5'"
-            f" vector-effect='non-scaling-stroke'/>"
-        )
+        cx = pl + i * cw + cw / 2          # 바 중심 X
+        x  = cx - bw / 2
+        bh = min(v / vmax, 1.0) * ch
+        y  = pt + ch - bh
+        # 막대
+        if bh > 0:
+            out += (
+                f"<rect x='{x:.1f}' y='{y:.1f}' width='{bw:.1f}' height='{bh:.1f}'"
+                f" rx='3' fill='{bar_color}' stroke='#1E1E1E' stroke-width='1.5'"
+                f" vector-effect='non-scaling-stroke'/>"
+            )
+        # 수치 라벨: 바 위에 세로(회전) 텍스트
+        if v > 0:
+            label_y = y - 3           # 바 바로 위
+            val_str = f"{v:,}"
+            out += (
+                f"<text"
+                f" transform='rotate(-90,{cx:.1f},{label_y:.1f})'"
+                f" x='{cx:.1f}' y='{label_y:.1f}'"
+                f" text-anchor='start'"
+                f" font-size='8' font-weight='600' fill='#555555'>{val_str}</text>"
+            )
+        # X축 날짜 라벨 (간격 조절)
         if n <= 14 or i % max(n // 6, 1) == 0:
             lbl = str(d)[5:] if isinstance(d, str) and len(str(d)) >= 7 else str(d)
             out += (
-                f"<text x='{x + bw / 2:.1f}' y='{height - 6:.1f}'"
+                f"<text x='{cx:.1f}' y='{height - 6:.1f}'"
                 f" text-anchor='middle' font-size='9' fill='#757575'>{lbl}</text>"
             )
     return (

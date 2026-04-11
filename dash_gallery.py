@@ -1,7 +1,7 @@
 """DC-Pickaxe 갤러리 상세 페이지"""
 import streamlit as st
 from dash_data import KST, time_ago, bdg, load_gallery, load_daily_stats, get_hot_posts
-from dash_charts import svg_line_area, svg_bar_daily
+from dash_charts import svg_bar_daily
 
 
 def render(row, nc, ic, uc, rc, lc, cfg):
@@ -110,9 +110,8 @@ def render(row, nc, ic, uc, rc, lc, cfg):
             unsafe_allow_html=True,
         )
 
-    # ── 오른쪽: 차트 2개 (세로 배치) ──────────────────────────────
+    # ── 오른쪽: 일별 게시글 차트 (인기글 카드와 동일 높이) ──────────
     with chart_col:
-        # 일별 게시글 (최근 30일) — stats 탭 우선, 없으면 raw 데이터 폴백
         if daily_stats:
             sorted_items = sorted(daily_stats.items())[-30:]
             dates_list = [d for d, _ in sorted_items]
@@ -127,49 +126,12 @@ def render(row, nc, ic, uc, rc, lc, cfg):
             )
             dates_list = [str(d) for d in daily["날짜_date"].tolist()]
             vals_list  = daily["수"].tolist()
-        bar_svg    = svg_bar_daily(dates_list, vals_list, width=560, height=130)
+        bar_svg = svg_bar_daily(dates_list, vals_list, width=560, height=240)
         st.markdown(
-            "<div class='lc' style='padding:16px 20px;margin-bottom:10px'>"
+            "<div class='lc' style='padding:16px 20px;height:100%;box-sizing:border-box'>"
             f"<p class='ctitle' style='margin-bottom:8px'>"
             f"{cfg.get('title_daily', '📅 일별 게시글 (30일)')}</p>"
             f"{bar_svg}"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-        # 누적 추이
-        all_daily = (
-            gdf.groupby("날짜_date")
-            .size()
-            .reset_index(name="수")
-            .sort_values("날짜_date")
-        )
-        all_daily["누적"] = all_daily["수"].cumsum()
-        cumul_vals = all_daily["누적"].tolist()
-        line_svg   = svg_line_area(
-            cumul_vals, width=560, height=120,
-            line_color="#1E1E1E", fill_color="#82C29A", svg_id="cumul"
-        )
-        dl = all_daily["날짜_date"].tolist()
-        dlabels = ""
-        if dl:
-            for idx in [0, len(dl) - 1]:
-                pct = (idx / max(len(dl) - 1, 1)) * 100
-                dlabels += (
-                    f"<span style='position:absolute;left:{pct:.0f}%;"
-                    f"transform:translateX(-50%);font-size:9px;color:#757575'>"
-                    f"{str(dl[idx])[5:]}</span>"
-                )
-        st.markdown(
-            "<div class='lc' style='padding:16px 20px'>"
-            "<div style='display:flex;justify-content:space-between;"
-            "align-items:center;margin-bottom:8px'>"
-            f"<p class='ctitle' style='margin:0'>"
-            f"{cfg.get('title_cumul', '📈 누적 추이')}</p>"
-            f"<span style='font-size:16px;font-weight:800'>{total:,}건</span>"
-            "</div>"
-            f"{line_svg}"
-            f"<div style='position:relative;height:14px;margin-top:2px'>{dlabels}</div>"
             "</div>",
             unsafe_allow_html=True,
         )
