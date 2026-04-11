@@ -52,11 +52,24 @@ def svg_line_area(values, width=560, height=130,
     )
 
 
+def _robust_vmax(values):
+    """이상치(백필 대량 수집일 등)가 Y축을 지배하지 않도록 95th 퍼센타일 기반 상한 계산."""
+    nz = sorted(v for v in values if v > 0)
+    if not nz:
+        return 1
+    raw_max = nz[-1]
+    if len(nz) < 4:
+        return raw_max
+    p95 = nz[int(len(nz) * 0.95)]
+    # 최댓값이 95th 퍼센타일의 3배 이상이면 이상치 → 95th 퍼센타일로 캡
+    return p95 if raw_max > p95 * 3 else raw_max
+
+
 def svg_bar_daily(dates, values, width=580, height=160, bar_color="#FFD166"):
     if not values:
         return ""
     n = len(values)
-    vmax = max(values) or 1
+    vmax = _robust_vmax(values)
     pl, pr, pt, pb = 8, 8, 20, 28
     cw = (width - pl - pr) / n
     bw = max(cw * 0.65, 2)
@@ -64,7 +77,7 @@ def svg_bar_daily(dates, values, width=580, height=160, bar_color="#FFD166"):
     out = ""
     for i, (d, v) in enumerate(zip(dates, values)):
         x = pl + i * cw + (cw - bw) / 2
-        bh = (v / vmax) * ch
+        bh = min(v / vmax, 1.0) * ch  # vmax 초과 시 꽉 찬 바로 표시
         y = pt + ch - bh
         out += (
             f"<rect x='{x:.1f}' y='{y:.1f}' width='{bw:.1f}' height='{bh:.1f}'"
@@ -98,10 +111,8 @@ def svg_multi_line_daily(series, width=880, height=210):
     all_dates = all_dates[-30:]
     n = len(all_dates)
 
-    vmax = max(
-        (data.get(d, 0) for _, _, data in series for d in all_dates),
-        default=1
-    ) or 1
+    all_vals = [data.get(d, 0) for _, _, data in series for d in all_dates]
+    vmax = _robust_vmax(all_vals) or 1
 
     legend_h = 24
     pl, pr, pt, pb = 14, 14, legend_h + 10, 26
@@ -110,7 +121,7 @@ def svg_multi_line_daily(series, width=880, height=210):
 
     def xy(i, v):
         x = pl + (i / max(n - 1, 1)) * draw_w
-        y = pt + draw_h * (1.0 - v / vmax)
+        y = pt + draw_h * (1.0 - min(v / vmax, 1.0))  # vmax 초과 시 상단 고정
         return x, y
 
     out = ""
