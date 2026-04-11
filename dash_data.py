@@ -199,6 +199,33 @@ def get_hot_posts(df: pd.DataFrame, n: int = 5) -> tuple:
     return pd.DataFrame(), "전체"
 
 
+# ── stats 탭 일자별 집계 로드 ─────────────────────────────────────
+
+@st.cache_data(ttl=300)
+def load_daily_stats(url: str) -> dict:
+    """각 갤러리 스프레드시트의 'stats' 탭에서 {날짜: 게시글수} 딕셔너리 반환."""
+    c = get_client()
+    if not c:
+        return {}
+    try:
+        ws = c.open_by_url(url).worksheet("stats")
+        rows = ws.get_all_values()
+        result = {}
+        for row in rows[1:]:  # 첫 행 헤더 스킵
+            if len(row) < 2:
+                continue
+            date_str = str(row[0]).strip()
+            count_str = str(row[1]).strip()
+            if len(date_str) == 10 and date_str[4] == "-":  # YYYY-MM-DD
+                try:
+                    result[date_str] = int(count_str)
+                except ValueError:
+                    pass
+        return result
+    except Exception:
+        return {}
+
+
 # ── 유틸 ──────────────────────────────────────────────────────────
 
 def find_col(df: pd.DataFrame, *keywords) -> str | None:

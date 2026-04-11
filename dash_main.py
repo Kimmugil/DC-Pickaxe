@@ -3,7 +3,7 @@ import re
 import pandas as pd
 import streamlit as st
 from datetime import datetime
-from dash_data import KST, time_ago, load_gallery, get_hot_posts
+from dash_data import KST, time_ago, load_gallery, load_daily_stats, get_hot_posts
 from dash_charts import CHART_COLORS, svg_multi_line_daily
 
 
@@ -75,18 +75,25 @@ def render(df, nc, ic, uc, rc, lc, tc, counts, cfg):
             if su.startswith("http"):
                 gallery_dfs[gn] = load_gallery(su)
 
-    # ── 일자별 추이 SVG 차트 ───────────────────────────────────────
+    # ── 일자별 추이 SVG 차트 (stats 탭 사용) ─────────────────────
     series = []
     for i, (_, row) in enumerate(df.iterrows()):
         gn    = str(row.get(nc, ""))
+        su    = str(row.get(uc, "")) if uc else ""
         color = CHART_COLORS[i % len(CHART_COLORS)]
-        gdf   = gallery_dfs.get(gn, pd.DataFrame())
-        if not gdf.empty and "날짜_date" in gdf.columns:
-            daily = {
-                str(d): int(v)
-                for d, v in gdf.groupby("날짜_date").size().items()
-            }
-            series.append((gn, color, daily))
+        if su.startswith("http"):
+            daily = load_daily_stats(su)
+            if daily:
+                series.append((gn, color, daily))
+            else:
+                # stats 탭 없으면 기존 raw 데이터로 폴백
+                gdf = gallery_dfs.get(gn, pd.DataFrame())
+                if not gdf.empty and "날짜_date" in gdf.columns:
+                    daily_raw = {
+                        str(d): int(v)
+                        for d, v in gdf.groupby("날짜_date").size().items()
+                    }
+                    series.append((gn, color, daily_raw))
 
     if series:
         chart_svg = svg_multi_line_daily(series)

@@ -1,6 +1,6 @@
 """DC-Pickaxe 갤러리 상세 페이지"""
 import streamlit as st
-from dash_data import KST, time_ago, bdg, load_gallery, get_hot_posts
+from dash_data import KST, time_ago, bdg, load_gallery, load_daily_stats, get_hot_posts
 from dash_charts import svg_line_area, svg_bar_daily
 
 
@@ -13,6 +13,7 @@ def render(row, nc, ic, uc, rc, lc, cfg):
 
     with st.spinner("갤러리 데이터 로딩 중..."):
         gdf = load_gallery(su)
+        daily_stats = load_daily_stats(su)  # stats 탭 일자별 집계
 
     if gdf.empty:
         st.info(cfg.get("msg_gall_no_data", "수집된 게시글이 없습니다. 온보딩 스크래퍼를 실행해주세요."))
@@ -111,16 +112,21 @@ def render(row, nc, ic, uc, rc, lc, cfg):
 
     # ── 오른쪽: 차트 2개 (세로 배치) ──────────────────────────────
     with chart_col:
-        # 일별 게시글 (최근 30일)
-        daily = (
-            gdf.groupby("날짜_date")
-            .size()
-            .reset_index(name="수")
-            .sort_values("날짜_date")
-            .tail(30)
-        )
-        dates_list = [str(d) for d in daily["날짜_date"].tolist()]
-        vals_list  = daily["수"].tolist()
+        # 일별 게시글 (최근 30일) — stats 탭 우선, 없으면 raw 데이터 폴백
+        if daily_stats:
+            sorted_items = sorted(daily_stats.items())[-30:]
+            dates_list = [d for d, _ in sorted_items]
+            vals_list  = [v for _, v in sorted_items]
+        else:
+            daily = (
+                gdf.groupby("날짜_date")
+                .size()
+                .reset_index(name="수")
+                .sort_values("날짜_date")
+                .tail(30)
+            )
+            dates_list = [str(d) for d in daily["날짜_date"].tolist()]
+            vals_list  = daily["수"].tolist()
         bar_svg    = svg_bar_daily(dates_list, vals_list, width=560, height=130)
         st.markdown(
             "<div class='lc' style='padding:16px 20px;margin-bottom:10px'>"
