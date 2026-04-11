@@ -100,6 +100,10 @@ def svg_multi_line_daily(series, width=880, height=210):
     """
     갤러리별 일자별 게시글 수 멀티라인 SVG 차트.
     series: list of (name, color, {date_str: int})
+
+    각 시리즈를 자신의 최댓값 기준으로 독립 정규화(0~100%)하여
+    규모 차이가 큰 갤러리들도 추이 패턴을 함께 비교할 수 있게 함.
+    라인 끝에 실제 최고값 라벨을 표시해 절대 규모도 파악 가능.
     """
     if not series:
         return ""
@@ -111,17 +115,15 @@ def svg_multi_line_daily(series, width=880, height=210):
     all_dates = all_dates[-30:]
     n = len(all_dates)
 
-    all_vals = [data.get(d, 0) for _, _, data in series for d in all_dates]
-    vmax = _robust_vmax(all_vals) or 1
-
     legend_h = 24
-    pl, pr, pt, pb = 14, 14, legend_h + 10, 26
+    pl, pr, pt, pb = 14, 80, legend_h + 10, 26  # pr=80 → 우측에 최고값 라벨 공간
     draw_w = width - pl - pr
     draw_h = height - pt - pb
 
-    def xy(i, v):
+    def xy(i, v, series_vmax):
         x = pl + (i / max(n - 1, 1)) * draw_w
-        y = pt + draw_h * (1.0 - min(v / vmax, 1.0))  # vmax 초과 시 상단 고정
+        ratio = min(v / series_vmax, 1.0) if series_vmax > 0 else 0
+        y = pt + draw_h * (1.0 - ratio)
         return x, y
 
     out = ""
@@ -130,16 +132,17 @@ def svg_multi_line_daily(series, width=880, height=210):
     for level in (0.25, 0.5, 0.75, 1.0):
         gy = pt + draw_h * (1.0 - level)
         out += (
-            f"<line x1='{pl}' y1='{gy:.1f}' x2='{width - pr}' y2='{gy:.1f}'"
+            f"<line x1='{pl}' y1='{gy:.1f}' x2='{pl + draw_w}' y2='{gy:.1f}'"
             f" stroke='#EDEDEE' stroke-width='1'/>"
         )
 
-    # 각 시리즈 라인
+    # 각 시리즈 라인 — 시리즈별 독립 vmax
     for name, color, data in series:
         vals = [data.get(d, 0) for d in all_dates]
         if all(v == 0 for v in vals):
             continue
-        pts = [xy(i, v) for i, v in enumerate(vals)]
+        series_vmax = _robust_vmax(vals) or 1
+        pts = [xy(i, v, series_vmax) for i, v in enumerate(vals)]
         path = f"M {pts[0][0]:.1f},{pts[0][1]:.1f}"
         for i in range(1, len(pts)):
             x0, y0 = pts[i - 1]
@@ -151,18 +154,26 @@ def svg_multi_line_daily(series, width=880, height=210):
             f" stroke-width='2' stroke-linecap='round' stroke-linejoin='round'"
             f" vector-effect='non-scaling-stroke'/>"
         )
-        # 마지막 데이터 포인트 원
+        # 마지막 데이터 포인트 원 + 최고값 라벨
         lx, ly = pts[-1]
         out += (
             f"<circle cx='{lx:.1f}' cy='{ly:.1f}' r='3'"
             f" fill='{color}' stroke='#1E1E1E' stroke-width='1'"
             f" vector-effect='non-scaling-stroke'/>"
         )
+        # 우측 라벨: 최근일 값 / 최고값
+        last_val = vals[-1]
+        label_y = max(pt + 8, min(ly, pt + draw_h - 4))  # 상하 클리핑
+        out += (
+            f"<text x='{lx + 7:.1f}' y='{label_y:.1f}'"
+            f" font-size='9' fill='{color}' font-weight='700'"
+            f" dominant-baseline='middle'>{last_val:,}건</text>"
+        )
 
     # 베이스라인
     base_y = pt + draw_h
     out += (
-        f"<line x1='{pl}' y1='{base_y:.1f}' x2='{width - pr}' y2='{base_y:.1f}'"
+        f"<line x1='{pl}' y1='{base_y:.1f}' x2='{pl + draw_w}' y2='{base_y:.1f}'"
         f" stroke='#CCCCCC' stroke-width='1'/>"
     )
 
@@ -173,25 +184,36 @@ def svg_multi_line_daily(series, width=880, height=210):
     if (n - 1) not in label_indices:
         label_indices.append(n - 1)
     for i in label_indices:
-        x, _ = xy(i, 0)
+        x = pl + (i / max(n - 1, 1)) * draw_w
         lbl = all_dates[i][5:]  # MM-DD
         out += (
             f"<text x='{x:.1f}' y='{height - 6}'"
             f" text-anchor='middle' font-size='9' fill='#AAAAAA'>{lbl}</text>"
         )
 
-    # 범례 (상단, 균등 배분)
+    # 범례 (상단, 균등 배분) — 최고값 포함
     ns = len(series)
-    slot_w = (width - 2 * pl) / max(ns, 1)
-    for idx, (name, color, _) in enumerate(series):
+    slot_w = (width - pl - 10) / max(ns, 1)
+    for idx, (name, color, data) in enumerate(series):
         lx = pl + idx * slot_w
         short = (name[:5] + "…") if len(name) > 5 else name
+        vals_all = [data.get(d, 0) for d in all_dates]
+        peak = max(vals_all) if vals_all else 0
         out += (
             f"<circle cx='{lx + 5:.1f}' cy='12' r='4.5' fill='{color}'"
             f" stroke='#1E1E1E' stroke-width='1.2' vector-effect='non-scaling-stroke'/>"
-            f"<text x='{lx + 14:.1f}' y='16' font-size='10'"
+            f"<text x='{lx + 14:.1f}' y='14' font-size='10'"
             f" fill='#1E1E1E' font-weight='600'>{short}</text>"
+            f"<text x='{lx + 14:.1f}' y='23' font-size='8'"
+            f" fill='#AAAAAA'>최대 {peak:,}건</text>"
         )
+
+    # 우상단 안내 텍스트
+    out += (
+        f"<text x='{width - 4}' y='{pt - 2}'"
+        f" text-anchor='end' font-size='8' fill='#CCCCCC'"
+        f" font-style='italic'>각 갤러리 독립 스케일</text>"
+    )
 
     return (
         f"<svg width='100%' viewBox='0 0 {width} {height}'"
