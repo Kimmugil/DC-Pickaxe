@@ -75,7 +75,8 @@ def is_soft_blocked(soup):
     for sig in block_signals:
         if sig.lower() in body_text.lower():
             return True
-    # 골격도 없고 시그니처도 없으면 — 안전하게 차단으로 처리
+    # 골격도 없고 시그니처도 없으면 — 디버그 출력 후 차단으로 처리
+    print(f"[is_soft_blocked] 골격 없음. 페이지 앞부분:\n{soup.get_text()[:300]}")
     return True
 
 
