@@ -122,6 +122,13 @@ def main():
     raw_records = master_sheet.get_all_records()
     gallery_list = [{k.strip(): v for k, v in record.items()} for record in raw_records]
 
+    # 특정 갤러리만 지정된 경우 필터링, 아니면 순서 랜덤화
+    target_ids = [x.strip() for x in os.environ.get('GALLERY_IDS', '').split() if x.strip()]
+    if target_ids:
+        gallery_list = [g for g in gallery_list if g.get('갤러리ID') in target_ids]
+    else:
+        random.shuffle(gallery_list)
+
     KST = timezone(timedelta(hours=9))
 
     for idx, g in enumerate(gallery_list):

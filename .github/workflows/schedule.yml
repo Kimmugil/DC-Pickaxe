@@ -4,7 +4,12 @@ on:
   schedule:
     # 1시간마다 실행 (매 시 정각, GitHub Actions 특성상 수 분 지연될 수 있음)
     - cron: '0 * * * *'
-  workflow_dispatch: # 수동으로도 버튼을 눌러서 실행할 수 있게 해줌
+  workflow_dispatch:
+    inputs:
+      gallery_ids:
+        description: '스크래핑할 갤러리 ID (공백 구분). 비워두면 전체 실행.'
+        required: false
+        default: ''
 
 jobs:
   scrape-and-update:
@@ -25,8 +30,8 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run Scraper
-      # 여기서 GitHub Secrets에 저장해둔 구글 출입증을 파이썬 코드로 안전하게 넘겨줘!
       env:
         GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
-        MASTER_SHEET_URL: ${{ secrets.MASTER_SHEET_URL }} # 이거 한 줄 추가!
+        MASTER_SHEET_URL: ${{ secrets.MASTER_SHEET_URL }}
+        GALLERY_IDS: ${{ github.event.inputs.gallery_ids }}
       run: python scraper.py
