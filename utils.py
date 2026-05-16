@@ -43,9 +43,10 @@ def get_url_prefix(gallery_type):
     else:
         return "mgallery/board"
 
-def get_post_content(gallery_id, post_id, headers, gallery_type, delay_range=(1.5, 3.0), timeout=6):
+def get_post_content(gallery_id, post_id, headers, gallery_type=None, delay_range=(1.5, 3.0), timeout=6, url_prefix=None):
     """개별 게시글의 본문 텍스트를 가져옵니다."""
-    url_prefix = get_url_prefix(gallery_type)
+    if url_prefix is None:
+        url_prefix = get_url_prefix(gallery_type) if gallery_type else 'mgallery/board'
     view_url = f"https://gall.dcinside.com/{url_prefix}/view/?id={gallery_id}&no={post_id}"
     try:
         time.sleep(random.uniform(*delay_range))

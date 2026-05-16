@@ -93,7 +93,7 @@ def scrape_gallery(gallery_id, existing_ids, is_first_run, url_prefix):
                 date_val = parse_date_str(row.select_one('.gall_date').text.strip(), now)
                 comment_count, view_count, recommend_count = extract_engagement(row)
                 post_link = f"https://gall.dcinside.com/{url_prefix}/view/?id={gallery_id}&no={post_id}"
-                content = get_post_content(gallery_id, post_id, DEFAULT_HEADERS, gallery_type)
+                content = get_post_content(gallery_id, post_id, DEFAULT_HEADERS, url_prefix=url_prefix)
 
                 all_new_posts.append([
                     post_id, title, content, writer, date_val,
