@@ -4,13 +4,12 @@ import random
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
-from utils import get_gspread_client, get_url_prefix, get_post_content, parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked
+from utils import get_gspread_client, get_url_prefix, detect_url_prefix, get_post_content, parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked
 
 
-def scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type):
+def scrape_gallery(gallery_id, existing_ids, is_first_run, url_prefix):
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST)
-    url_prefix = get_url_prefix(gallery_type)
 
     all_new_posts = []
     page = 1
@@ -135,7 +134,8 @@ def main():
         gallery_id = g.get('갤러리ID')
         sheet_url = g.get('저장시트 URL')
         gallery_name = g.get('갤러리명')
-        gallery_type = g.get('갤러리타입', '마이너').strip()
+        gallery_type = g.get('갤러리타입', '').strip()
+        url_prefix = get_url_prefix(gallery_type) if gallery_type else detect_url_prefix(gallery_id, DEFAULT_HEADERS)
 
         print(f"\n>>> [{gallery_name}] 수집 시작...")
 
@@ -144,7 +144,7 @@ def main():
             existing_ids = set([x for x in target_sheet.col_values(1) if x.isdigit()])
             is_first_run = (len(existing_ids) == 0)
 
-            new_posts = scrape_gallery(gallery_id, existing_ids, is_first_run, gallery_type)
+            new_posts = scrape_gallery(gallery_id, existing_ids, is_first_run, url_prefix)
 
             if new_posts:
                 new_posts.reverse()

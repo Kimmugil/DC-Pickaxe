@@ -21,7 +21,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from utils import (
-    get_gspread_client, get_url_prefix,
+    get_gspread_client, get_url_prefix, detect_url_prefix,
     parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked,
 )
 
@@ -101,12 +101,11 @@ def detect_gaps(daily_counts, gallery_name):
 
 # ── Phase 1: 목록 스캔 (메타데이터만, 빠름) ──────────────────────
 
-def scan_gap_metadata(gallery_id, gap_dates, existing_ids, gallery_type, deadline):
+def scan_gap_metadata(gallery_id, gap_dates, existing_ids, url_prefix, deadline):
     """
     gap_dates 구간의 누락 게시글 메타데이터를 목록 페이지에서 수집.
     본문은 수집하지 않음 (Phase 2에서 async로 일괄 처리).
     """
-    url_prefix = get_url_prefix(gallery_type)
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST)
 
@@ -302,7 +301,8 @@ def main():
         gallery_id   = g.get('갤러리ID', '').strip()
         gallery_name = g.get('갤러리명', gallery_id)
         sheet_url    = g.get('저장시트 URL', '').strip()
-        gallery_type = g.get('갤러리타입', '마이너').strip()
+        gallery_type = g.get('갤러리타입', '').strip()
+        url_prefix   = get_url_prefix(gallery_type) if gallery_type else detect_url_prefix(gallery_id, DEFAULT_HEADERS)
 
         if not gallery_id or not sheet_url:
             continue
@@ -321,7 +321,7 @@ def main():
 
             # Phase 1: 목록 스캔 (메타데이터만, 빠름)
             meta_list = scan_gap_metadata(
-                gallery_id, gap_dates, existing_ids, gallery_type, deadline
+                gallery_id, gap_dates, existing_ids, url_prefix, deadline
             )
 
             if not meta_list:
@@ -329,7 +329,6 @@ def main():
                 continue
 
             # Phase 2: async 병렬 본문 수집
-            url_prefix = get_url_prefix(gallery_type)
             print(f"  [{gallery_name}] Phase 2: 본문 async 수집 ({len(meta_list)}건)...")
             post_ids = [p["id"] for p in meta_list]
             contents = asyncio.run(

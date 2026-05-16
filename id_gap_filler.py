@@ -15,7 +15,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from utils import get_gspread_client, get_url_prefix, DEFAULT_HEADERS
+from utils import get_gspread_client, get_url_prefix, detect_url_prefix, DEFAULT_HEADERS
 
 load_dotenv()
 
@@ -115,8 +115,8 @@ def main():
 
     gallery_name = gallery_info.get('갤러리명', gallery_id)
     sheet_url    = gallery_info.get('저장시트 URL', '').strip()
-    gallery_type = gallery_info.get('갤러리타입', '마이너').strip()
-    url_prefix   = get_url_prefix(gallery_type)
+    gallery_type = gallery_info.get('갤러리타입', '').strip()
+    url_prefix   = get_url_prefix(gallery_type) if gallery_type else detect_url_prefix(gallery_id, DEFAULT_HEADERS)
 
     print(f"\n{'='*60}")
     print(f"  DC-Pickaxe ID 갭 채우기")

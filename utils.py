@@ -75,9 +75,22 @@ def is_soft_blocked(soup):
     for sig in block_signals:
         if sig.lower() in body_text.lower():
             return True
-    # 골격도 없고 시그니처도 없으면 — 디버그 출력 후 차단으로 처리
-    print(f"[is_soft_blocked] 골격 없음. 페이지 앞부분:\n{soup.get_text()[:300]}")
     return True
+
+
+def detect_url_prefix(gallery_id, headers, timeout=10):
+    """갤러리 ID로 올바른 URL prefix를 자동 감지. 마이너 → 일반 → 미니 순으로 시도."""
+    for prefix in ('mgallery/board', 'board', 'mini/board'):
+        url = f"https://gall.dcinside.com/{prefix}/lists/?id={gallery_id}&page=1"
+        try:
+            r = requests.get(url, headers=headers, verify=False, timeout=timeout)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, 'html.parser')
+                if not is_soft_blocked(soup):
+                    return prefix
+        except Exception:
+            continue
+    return 'mgallery/board'
 
 
 def parse_date_str(date_str, now):
