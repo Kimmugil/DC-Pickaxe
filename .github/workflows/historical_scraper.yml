@@ -1,0 +1,48 @@
+name: DC-Pickaxe 과거 글 수집
+
+on:
+  workflow_dispatch:
+    inputs:
+      gallery_id:
+        description: '갤러리 ID (예: projectnike). 비워두면 전체 갤러리 순차 실행.'
+        required: false
+        default: ''
+      skip_content:
+        description: '본문 수집 생략 (속도 2~3배 향상)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  historical-scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Historical Scraper
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          MASTER_SHEET_URL: ${{ secrets.MASTER_SHEET_URL }}
+          GALLERY_ID: ${{ github.event.inputs.gallery_id }}
+        run: |
+          if [ "${{ github.event.inputs.skip_content }}" = "true" ]; then
+            python historical_scraper.py --skip-content
+          else
+            python historical_scraper.py
+          fi

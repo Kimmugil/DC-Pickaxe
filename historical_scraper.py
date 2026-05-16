@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from utils import (
-    get_gspread_client, get_url_prefix, get_post_content,
+    get_gspread_client, get_url_prefix, detect_url_prefix, get_post_content,
     parse_date_str, extract_engagement, DEFAULT_HEADERS, is_soft_blocked,
 )
 
@@ -152,14 +152,13 @@ def flush_batch(sheet, batch, gallery_id, url_prefix):
 # ── 갤러리 수집 메인 루프 ─────────────────────────────────────────
 
 def scrape_gallery_historical(
-    gallery_id, gallery_type, sheet, existing_ids,
+    gallery_id, url_prefix, sheet, existing_ids,
     start_page, ckpt_ws, checkpoints, deadline,
 ):
     """
     start_page부터 역방향으로 수집. deadline 도달 또는 갤러리 끝이면 종료.
     반환: (total_saved, is_complete)
     """
-    url_prefix = get_url_prefix(gallery_type)
     KST = timezone(timedelta(hours=9))
     now_ref = datetime.now(KST)
 
@@ -349,15 +348,20 @@ def main():
     all_done = True
     grand_total = 0
 
+    target_id = os.environ.get("GALLERY_ID", "").strip()
+
     for g in gallery_list:
         gallery_id   = g.get("갤러리ID", "").strip()
         gallery_name = g.get("갤러리명", gallery_id)
         sheet_url    = g.get("저장시트 URL", "").strip()
-        gallery_type = g.get("갤러리타입", "마이너").strip()
+        gallery_type = g.get("갤러리타입", "").strip()
 
         if not gallery_id or not sheet_url:
             continue
+        if target_id and gallery_id != target_id:
+            continue
 
+        url_prefix = get_url_prefix(gallery_type) if gallery_type else detect_url_prefix(gallery_id, DEFAULT_HEADERS)
         ckpt = checkpoints.get(gallery_id, {})
 
         if ckpt.get("done"):
@@ -385,7 +389,7 @@ def main():
             existing_ids = set(v for v in gsheet.col_values(1) if str(v).isdigit())
 
             saved, is_complete = scrape_gallery_historical(
-                gallery_id, gallery_type, gsheet, existing_ids,
+                gallery_id, url_prefix, gsheet, existing_ids,
                 start_page, ckpt_ws, checkpoints, deadline,
             )
             grand_total += saved
